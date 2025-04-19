@@ -1,12 +1,12 @@
 import pandas as pd
 
 # data.csvを読み込む
-file_path = 'data.csv'  # あなたのファイルのパスを指定
+file_path = 'csv/data.csv'
 data = pd.read_csv(file_path)
 
 # 閾値の設定
-l = 0.4  # low threshold
-h = 0.65  # high threshold
+l = 0.4
+h = 0.7
 
 
 # HEXACOスコアから指標を計算する関数
@@ -37,7 +37,7 @@ def calculate_indicators(row):
     critical_thinking = (0.6 if row['Openness'] >= 4 else 0) \
                         + (0.2 if row['Agreeableness'] >= 4 else 0) \
                         + (0.2 if row['Emotionality'] <= 3 else 0)
-    effort = 1 if row['Conscientiousness'] >= 4 else 0
+    effort = 1 if row['Conscientiousness'] >= 4 else 0.5 if row['Conscientiousness'] >= 3.5 else 0
     high_motivation = (0.3 if row['Honesty-Humility'] >= 4 else 0) \
                     + (0.1 if row['Emotionality'] >= 4 else 0) \
                     + (0.1 if row['Extraversion'] >= 4 else 0) \
@@ -51,8 +51,10 @@ def calculate_indicators(row):
                     + (0.34 if row['Emotionality'] <= 3 else 0)
     sdt_relation = (0.5 if row['Extraversion'] >= 4 else 0) \
                 + (0.5 if row['Emotionality'] <= 3 else 0)
-    listening_to_others = 1 if row['Extraversion'] <= 3 else 0
-    adapting_to_change = 1 if row['Extraversion'] <= 3 else 0
+    listening_to_others = 1 if row['Extraversion'] <= 3 else 0.5 if row['Extraversion'] <= 3.5 else 0
+    adapting_to_change  = 1 if row['Extraversion'] <= 3 else 0.5 if row['Extraversion'] <= 3.5 else 0
+    # listening_to_others = 1 if row['Extraversion'] <= 3 else 0
+    # adapting_to_change  = 1 if row['Extraversion'] <= 3 else 0
     feel_happiness = (0.33 if row['Extraversion'] >= 4 else 0) \
                     + (0.33 if row['Agreeableness'] >= 4 else 0) \
                     + (0.34 if row['Emotionality'] <= 3 else 0)
@@ -78,7 +80,7 @@ def calculate_indicators(row):
                             + (0.34 if row['Emotionality'] >= 4 else 0)
     coping_recreation = (0.33 if row['Extraversion'] >= 4 else 0) \
                     + (0.33 if row['Conscientiousness'] >= 4 else 0) \
-                    + (0.34 if row['Emotionality'] <= 3 else 0)
+                    + (0.34 if row['Emotionality'] >= 4 else 0)
     coping_cognitive_restructuring = (0.25 if row['Extraversion'] >= 4 else 0) \
                                 + (0.25 if row['Conscientiousness'] >= 4 else 0) \
                                 + (0.25 if row['Emotionality'] <= 3 else 0) \
@@ -102,12 +104,15 @@ def calculate_indicators(row):
                         + (0.34 if row['Emotionality'] >= 4 else 0)
     coping_religious = (0.5 if row['Agreeableness'] >= 4 else 0) \
                     + (0.5 if row['Openness'] <= 3 else 0)
-    risk_humble_calm = 1 if row['Conscientiousness'] >= 4 else 0
-    risk_low_regret = 1 if row['Openness'] >= 4 else 0
 
+    risk_humble_calm = 1 if row['Conscientiousness'] >= 4 else 0.5 if row['Conscientiousness'] >= 3.5 else 0
+    # risk_humble_calm = 1 if row['Conscientiousness'] >= 4 else 0
+    risk_low_regret = 1 if row['Openness'] >= 4 else 0.5 if row['Openness'] >= 3.5 else 0
+    # risk_low_regret = 1 if row['Openness'] >= 4 else 0
     risk_challenge = (0.6 if row['Openness'] >= 4 else 0) \
                     + (0.4 if row['Conscientiousness'] <= 3 else 0)
-    risk_strong_bias = 1 if row['Emotionality'] >= 4 else 0
+    risk_strong_bias = 1 if row['Emotionality'] >= 4 else 0.5 if row['Emotionality'] >= 3.5 else 0
+    # risk_strong_bias = 1 if row['Emotionality'] >= 4 else 0
     
     # 価値観・認識
     spirituality = (0.6 if row['Openness'] >= 4 else 0) \
@@ -124,16 +129,18 @@ def calculate_indicators(row):
                       + (0.5 if row['Openness'] >= 4 else 0)
     like_universal = (0.5 if row['Openness'] >= 4 else 0) \
                     + (0.5 if row['Agreeableness'] >= 4 else 0)
-    like_philanthropy = 1 if row['Agreeableness'] >= 4 else 0
-    like_harmony = (0.33 if row['Extraversion'] <= 3 else 0) \
-                + (0.33 if row['Openness'] <= 3 else 0) \
-                + (0.34 if row['Agreeableness'] >= 4 else 0)
+    like_philanthropy = 1 if row['Agreeableness'] >= 4 else 0.5 if row['Agreeableness'] >= 3.5 else 0
+    # like_philanthropy = 1 if row['Agreeableness'] >= 4 else 0
+    like_harmony = (0.33 if row['Openness'] <= 3 else 0) \
+                + (0.33 if row['Agreeableness'] >= 4 else 0) \
+                + (0.34 if row['Conscientiousness'] >= 4 else 0)
     like_tradition = (0.33 if row['Extraversion'] <= 3 else 0) \
                     + (0.33 if row['Openness'] <= 3 else 0) \
                     + (0.34 if row['Agreeableness'] >= 4 else 0)
     like_safety = (0.5 if row['Openness'] <= 3 else 0) \
                 + (0.5 if row['Conscientiousness'] >= 4 else 0)
-    politics_left = 1 if row['Openness'] >= 4 else 0
+    politics_left = 1 if row['Openness'] >= 4 else 0.5 if row['Openness'] >= 3.5 else 0
+    # politics_left = 1 if row['Openness'] >= 4 else 0
     politics_right = (0.33 if row['Honesty-Humility'] <= 3 else 0) \
                     + (0.33 if row['Openness'] <= 3 else 0) \
                     + (0.34 if row['Conscientiousness'] >= 4 else 0)
@@ -141,7 +148,8 @@ def calculate_indicators(row):
                                 + (0.5 if row['Openness'] >= 4 else 0)
     prejudice_rwa = (0.5 if row['Conscientiousness'] >= 4 else 0) \
                     + (0.5 if row['Openness'] <= 3 else 0)
-    prejudice_sdo = 1 if row['Agreeableness'] <= 3 else 0
+    prejudice_sdo = 1 if row['Agreeableness'] <= 2.5 else 0.5 if row['Agreeableness'] <= 3.0 else 0
+    # prejudice_sdo = 1 if row['Agreeableness'] <= 3 else 0
     beliefin_unjust_world = (0.167 if row['Honesty-Humility'] <= 3 else 0) \
                           + (0.167 if row['Emotionality'] >= 4 else 0) \
                           + (0.167 if row['Extraversion'] <= 3 else 0) \
@@ -152,8 +160,9 @@ def calculate_indicators(row):
     compatibility_2 = 1 if row['Honesty-Humility'] < 3 and row['Openness'] >= 3 else 0
     compatibility_3 = 1 if row['Honesty-Humility'] >= 3 and row['Openness'] < 3 else 0
     compatibility_4 = 1 if row['Honesty-Humility'] < 3 and row['Openness'] < 3 else 0
-    social_loafing = 1 if row['Conscientiousness'] <= 3 else 0
-    feel_peer_pressure = (0.25 if row['Extraversion'] >= 4 else 0) \
+    social_loafing = 1 if row['Conscientiousness'] <= 2.5 else 0.5 if row['Conscientiousness'] <= 3.0 else 0
+    # social_loafing = 1 if row['Conscientiousness'] <= 3 else 0
+    feel_peer_pressure = (0.25 if row['Emotionality'] >= 4 else 0) \
                         + (0.25 if row['Extraversion'] >= 4 else 0) \
                         + (0.25 if row['Agreeableness'] >= 4 else 0) \
                         + (0.25 if row['Conscientiousness'] >= 4 else 0)
@@ -174,8 +183,8 @@ def calculate_indicators(row):
     career_success = (0.33 if row['Extraversion'] >= 4 else 0) \
                     + (0.33 if row['Conscientiousness'] >= 4 else 0) \
                     + (0.34 if row['Emotionality'] <= 3 else 0)
-
-    adapting_to_complex_work = 1 if row['Extraversion'] <= 3 else 0
+    adapting_to_complex_work = 1 if row['Extraversion'] <= 3 else 0.5 if row['Extraversion'] <= 3.5 else 0
+    # adapting_to_complex_work = 1 if row['Extraversion'] <= 3 else 0
     good_team = (0.5 if row['Conscientiousness'] >= 4 else 0) \
                 + (0.5 if row['Agreeableness'] >= 4 else 0)
     resignation = (0.33 if row['Extraversion'] >= 4 else 0) \
@@ -245,10 +254,11 @@ def calculate_indicators(row):
                             + (0.25 if row['Agreeableness'] <= 3 else 0) \
                             + (0.25 if row['Conscientiousness'] <= 3 else 0) \
                             + (0.25 if row['Emotionality'] >= 4 else 0)
-    followership_transformational = (0.33 if row['Emotionality'] >= 4 else 0) \
+    followership_transformational = (0.33 if row['Honesty-Humility'] <= 3 else 0) \
                                 + (0.33 if row['Extraversion'] >= 4 else 0) \
                                 + (0.34 if row['Openness'] >= 4 else 0)
-    followership_relational = 1 if row['Emotionality'] >= 4 else 0
+    followership_relational = 1 if row['Emotionality'] >= 4 else 0.5 if row['Emotionality'] >= 3.5 else 0
+    # followership_relational = 1 if row['Emotionality'] >= 4 else 0
     followership_realistic = (0.5 if row['Emotionality'] >= 4 else 0) \
                             + (0.5 if row['Openness'] <= 3 else 0)
 
@@ -359,7 +369,7 @@ indicators = data.apply(calculate_indicators, axis=1)
 output_data = pd.concat([data, indicators], axis=1)
 
 # 結果をoutput.csvとして保存
-output_file_path = 'output.csv'  # 出力ファイルのパス
+output_file_path = 'csv/output.csv'  # 出力ファイルのパス
 output_data.to_csv(output_file_path, index=False)
 
 print(f"結果が '{output_file_path}' に保存されました。")
