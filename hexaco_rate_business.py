@@ -5,7 +5,7 @@ file_path = 'csv/data.csv'
 data = pd.read_csv(file_path)
 
 # 閾値の設定
-l = 0.4
+l = 0.45
 h = 0.7
 
 
@@ -22,11 +22,11 @@ def calculate_indicators(row):
                 + (0.3 if row['Agreeableness'] <= 2.5 else 0) \
                 + (0.2 if row['Emotionality'] <= 2.5 else 0) \
                 + (0.1 if row['Extraversion'] <= 3.0 else 0) \
-                + (0.2 if row['Conscientiousness'] <= 3.0 else 0)
+                + (0.1 if row['Conscientiousness'] <= 3.0 else 0)
     machiavellianism = (0.3 if row['Honesty-Humility'] <= 2.5 else 0) \
                     + (0.3 if row['Agreeableness'] <= 2.5 else 0) \
                     + (0.2 if row['Emotionality'] <= 3.0 else 0) \
-                    + (0.2 if row['Extraversion'] <= 3.0 else 0) \
+                    + (0.1 if row['Extraversion'] <= 3.0 else 0) \
                     + (0.1 if row['Openness'] >= 3.0 else 0)
     highIQ = (0.7 if row['Openness'] >= 4 else 0) \
             + (0.3 if row['Emotionality'] <= 3 else 0)
