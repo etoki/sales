@@ -4,6 +4,8 @@ import pandas as pd
 file_path = 'csv/data.csv'
 data = pd.read_csv(file_path)
 
+output_file_path = 'csv/output_jp.csv'  # 出力ファイルのパス
+
 # 閾値の設定
 l = 0.45
 h = 0.7
@@ -51,10 +53,6 @@ def calculate_indicators(row):
                     + (0.34 if row['Emotionality'] <= 3 else 0)
     sdt_relation = (0.5 if row['Extraversion'] >= 4 else 0) \
                 + (0.5 if row['Emotionality'] <= 3 else 0)
-    listening_to_others = 1 if row['Extraversion'] <= 3 else 0.5 if row['Extraversion'] <= 3.5 else 0
-    adapting_to_change  = 1 if row['Extraversion'] <= 3 else 0.5 if row['Extraversion'] <= 3.5 else 0
-    # listening_to_others = 1 if row['Extraversion'] <= 3 else 0
-    # adapting_to_change  = 1 if row['Extraversion'] <= 3 else 0
     feel_happiness = (0.33 if row['Extraversion'] >= 4 else 0) \
                     + (0.33 if row['Agreeableness'] >= 4 else 0) \
                     + (0.34 if row['Emotionality'] <= 3 else 0)
@@ -183,8 +181,6 @@ def calculate_indicators(row):
     career_success = (0.33 if row['Extraversion'] >= 4 else 0) \
                     + (0.33 if row['Conscientiousness'] >= 4 else 0) \
                     + (0.34 if row['Emotionality'] <= 3 else 0)
-    adapting_to_complex_work = 1 if row['Extraversion'] <= 3 else 0.5 if row['Extraversion'] <= 3.5 else 0
-    # adapting_to_complex_work = 1 if row['Extraversion'] <= 3 else 0
     good_team = (0.5 if row['Conscientiousness'] >= 4 else 0) \
                 + (0.5 if row['Agreeableness'] >= 4 else 0)
     resignation = (0.33 if row['Extraversion'] >= 4 else 0) \
@@ -284,8 +280,6 @@ def calculate_indicators(row):
         '主体的に行動しやすい': classify(sdt_autonomy),
         '自信を持ちやすい': classify(sdt_competent),
         '周囲といい関係を持ちやすい': classify(sdt_relation),
-        '傾聴できる': classify(listening_to_others),
-        '変化へ適応できる': classify(adapting_to_change),
         '幸せを感じやすい': classify(feel_happiness),
         '運がいいと感じやすい': classify(feel_lucky),
         '自己効力感が高い': classify(high_self_efficacy),
@@ -335,7 +329,6 @@ def calculate_indicators(row):
         '収入が高くなりやすい': classify(high_income),
         '仕事のパフォーマンスが高くなりやすい': classify(high_job_performance),
         'キャリアが上手くいきやすい': classify(career_success),
-        '複雑な仕事へ適応できる': classify(adapting_to_complex_work),
         'いいチームメンバーになる': classify(good_team),
         '自発的に離職しやすい': classify(resignation),
         '疲れやすい': classify(tired),
@@ -369,7 +362,6 @@ indicators = data.apply(calculate_indicators, axis=1)
 output_data = pd.concat([data, indicators], axis=1)
 
 # 結果をoutput.csvとして保存
-output_file_path = 'csv/output.csv'  # 出力ファイルのパス
 output_data.to_csv(output_file_path, index=False)
 
 print(f"結果が '{output_file_path}' に保存されました。")

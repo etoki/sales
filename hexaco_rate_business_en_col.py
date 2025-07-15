@@ -51,10 +51,6 @@ def calculate_indicators(row):
                     + (0.34 if row['Emotionality'] <= 3 else 0)
     sdt_relation = (0.5 if row['Extraversion'] >= 4 else 0) \
                 + (0.5 if row['Emotionality'] <= 3 else 0)
-    listening_to_others = 1 if row['Extraversion'] <= 3 else 0.5 if row['Extraversion'] <= 3.5 else 0
-    adapting_to_change  = 1 if row['Extraversion'] <= 3 else 0.5 if row['Extraversion'] <= 3.5 else 0
-    # listening_to_others = 1 if row['Extraversion'] <= 3 else 0
-    # adapting_to_change  = 1 if row['Extraversion'] <= 3 else 0
     feel_happiness = (0.33 if row['Extraversion'] >= 4 else 0) \
                     + (0.33 if row['Agreeableness'] >= 4 else 0) \
                     + (0.34 if row['Emotionality'] <= 3 else 0)
@@ -183,8 +179,6 @@ def calculate_indicators(row):
     career_success = (0.33 if row['Extraversion'] >= 4 else 0) \
                     + (0.33 if row['Conscientiousness'] >= 4 else 0) \
                     + (0.34 if row['Emotionality'] <= 3 else 0)
-    adapting_to_complex_work = 1 if row['Extraversion'] <= 3 else 0.5 if row['Extraversion'] <= 3.5 else 0
-    # adapting_to_complex_work = 1 if row['Extraversion'] <= 3 else 0
     good_team = (0.5 if row['Conscientiousness'] >= 4 else 0) \
                 + (0.5 if row['Agreeableness'] >= 4 else 0)
     resignation = (0.33 if row['Extraversion'] >= 4 else 0) \
@@ -284,8 +278,6 @@ def calculate_indicators(row):
         'sdt_autonomy': classify(sdt_autonomy),
         'sdt_competent': classify(sdt_competent),
         'sdt_relation': classify(sdt_relation),
-        'listening_to_others': classify(listening_to_others),
-        'adapting_to_change': classify(adapting_to_change),
         'feel_happiness': classify(feel_happiness),
         'feel_lucky': classify(feel_lucky),
         'high_self_efficacy': classify(high_self_efficacy),
@@ -335,7 +327,6 @@ def calculate_indicators(row):
         'high_income': classify(high_income),
         'high_job_performance': classify(high_job_performance),
         'career_success': classify(career_success),
-        'adapting_to_complex_work': classify(adapting_to_complex_work),
         'good_team': classify(good_team),
         'resignation': classify(resignation),
         'tired': classify(tired),
