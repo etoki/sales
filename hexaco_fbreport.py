@@ -24,6 +24,7 @@ plt.rcParams['font.family'] = fontprop.get_name()
 df = pd.read_csv("csv/20250417_nttdata_ddd.csv")
 
 # ChatGPTで文章生成
+
 def generate_feedback(row):
     name = row["Name"]
     hexaco_scores = {
