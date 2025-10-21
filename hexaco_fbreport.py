@@ -6,6 +6,8 @@ from datetime import datetime, timezone, timedelta
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import unicodedata
+from typing import Dict, List, Tuple, Iterable, Optional
 
 from docx import Document
 from docx.shared import Inches
@@ -18,7 +20,8 @@ client = OpenAI(api_key="")
 
 
 # ------------------ コンフィグ ------------------
-CSV_PATH = "csv/20250417_nttdata.csv"
+CSV_PATH = "csv/20251020_nttdatauniv_test.csv"
+# CSV_PATH = "csv/20251020_nttdatauniv.csv"
 TEMPLATE_PERSON = "tmp/HEXACOfbレポート_本人用_tmp.docx"
 TEMPLATE_OFFICE = "tmp/HEXACOfbレポート_事務局用_tmp.docx"
 OUT_DIR = "out/"
@@ -58,6 +61,43 @@ def fmt1(x) -> str:
     except Exception:
         return ""
 
+FORBIDDEN_PAT = re.compile(
+    r'(正直・?謙虚さ|HEXACO|H要因|ダーク(?:・?トライアド)|ナルシシズム|マキャベリ[アャ]ニズム|サイコパシー)',
+    flags=re.IGNORECASE
+)
+
+def sanitize_comment(text: str) -> str:
+    # 正規化（全角/半角のゆれを軽減）
+    text = unicodedata.normalize("NFKC", text)
+
+    cleaned_lines = []
+    for raw_line in text.splitlines():
+        line = raw_line.rstrip()
+
+        # 箇条書き（・, -, *, ● など）は「行」ごと判定して消す
+        if re.match(r'^\s*[・\-*●◎◼︎▪︎●]', line):
+            if FORBIDDEN_PAT.search(line):
+                continue
+            cleaned_lines.append(line)
+            continue
+
+        # 通常文は「文」単位で分割して禁止語を含む文だけ落とす
+        sentences = re.split(r'(?<=[。．！？!?」』])\s*', line)  # 句点や閉じ括弧の直後で分割
+        kept = [s for s in sentences if s and not FORBIDDEN_PAT.search(s)]
+
+        # 何か残ったら連結、全落ちならこの行はスキップ
+        if kept:
+            joined = ''.join(kept)
+
+            # 連続句読点や空白の整理（見た目の崩れ防止）
+            joined = re.sub(r'[ 　]{2,}', ' ', joined)              # 連続スペース
+            joined = re.sub(r'([。．！？!?])\1+', r'\1', joined)    # 句読点の重複
+            cleaned_lines.append(joined)
+
+    # 余分な空行を潰して返す
+    out = '\n'.join([l for l in cleaned_lines if l.strip()])
+    return out.strip()
+
 def trim_to_fullwidth_chars(text: str, limit: int) -> str:
     if text is None:
         return ""
@@ -70,15 +110,58 @@ def trim_to_fullwidth_chars(text: str, limit: int) -> str:
         s = s[:last_marume+1]
     return s
 
-def detect_strength_weakness(row: pd.Series, start_col: int = 7):
+DARK_TRAIT_COLS = ["ダーク傾向", "ナルシシズム", "サイコパシー", "マキャベリズム"]
+
+def collect_level_flags(row, exclude_cols=None, include_middle: bool = False):
+    """
+    行データから high/low を抽出し、「カラム:値」形式で返す。
+    例） strengths = ["主体的に行動しやすい可能性:high", ...]
+        weaknesses = ["疲れやすい可能性:low", ...]
+    include_middle=True にすると middle も含められる（デフォルトは除外）。
+    """
+    if exclude_cols is None:
+        exclude_cols = []
+
     strengths, weaknesses = [], []
-    for col in row.index[start_col:]:
-        val = str(row[col]).strip().lower()
-        if val == "high":
-            strengths.append(col)
-        elif val == "low":
-            weaknesses.append(col)
+    for col, val in row.items():
+        if col in exclude_cols:
+            continue
+        if isinstance(val, str):
+            sv = val.strip().lower()
+            if sv in ("high", "low", "middle"):
+                if sv == "high":
+                    strengths.append(f"{col}:{sv}")
+                elif sv == "low":
+                    weaknesses.append(f"{col}:{sv}")
+                elif include_middle:
+                    # middle もプロンプトに渡したい場合はここで扱う（必要なければ無視される）
+                    pass
     return strengths, weaknesses
+
+PRIORITY_HEADS_STRENGTH = ["正直・謙虚さ（倫理観）","協調性（利他性・共感性）","誠実性（計画性）","開放性（好奇心）",
+                           "高いIQの可能性","いい上司になりやすい可能性","仕事のパフォーマンスが高くなりやすい可能性",
+                           "主体的に行動しやすい可能性","ワークエンゲージメントが高くなりやすい可能性","職務の範囲外の仕事を積極的に行う可能性"]
+
+PRIORITY_HEADS_WEAKNESS = ["情動性（不安傾向）","協調性（利他性・共感性）","誠実性（計画性）",
+                           "バイアスを持ちやすい可能性","疲れやすい可能性","ネガティブなことを環境のせいにする可能性",
+                           "ストレス対処の傾向：問題をとにかく避ける","高いEQの可能性","ポジティブ感情が強い可能性"]
+
+def sort_by_priority_strength(items):
+    # 「カラム:値」→「カラム」部分だけで優先度リストを引く
+    prio = {name: i for i, name in enumerate(PRIORITY_HEADS_STRENGTH)}
+    def _key(x: str):
+        head = x.split(":", 1)[0] if isinstance(x, str) else x
+        return prio.get(head, 10_000)
+    return sorted(items, key=_key)
+
+
+def sort_by_priority_weakness(items):
+    # 「カラム:値」→「カラム」部分だけで優先度リストを引く
+    prio = {name: i for i, name in enumerate(PRIORITY_HEADS_WEAKNESS)}
+    def _key(x: str):
+        head = x.split(":", 1)[0] if isinstance(x, str) else x
+        return prio.get(head, 10_000)
+    return sorted(items, key=_key)
 
 # ------------------ レーダー ------------------
 
@@ -210,10 +293,13 @@ def apply_font(doc: Document, font_name: str):
 PERSON_COMMENT_LIMIT = 200
 OFFICE_COMMENT_LIMIT  = 600
 
+MAX_OFFICE_STRENGTHS = 10
+MAX_OFFICE_WEAKNESSES = 3
+
 def build_person_prompt(name: str, levels_5: dict, strengths: list, weaknesses: list) -> str:
     lines = []
     lines.append("あなたは産業・組織心理学の専門家です。全角200文字以内で日本語の自然な文を書いてください。")
-    lines.append(f"対象者名: {name}")
+    # lines.append(f"対象者名: {name}")
     lines.append("HEXACO（本人用5因子）の水準: " + ", ".join([
         f"O={levels_5.get('O','')}",
         f"C={levels_5.get('C','')}",
@@ -221,14 +307,18 @@ def build_person_prompt(name: str, levels_5: dict, strengths: list, weaknesses: 
         f"A={levels_5.get('A','')}",
         f"N={levels_5.get('N','')}",
     ]))
-    if strengths:
-        lines.append("強み（high）: " + "、".join(strengths[:10]))
-    if weaknesses:
-        lines.append("改善余地（low）: " + "、".join(weaknesses[:10]))
-    lines.append("要件: 否定表現を避け、前向きな行動提案を3個か4個ぐらい含め、専門用語を控えめに、1段落のみ。")
+
+    lines.append("出力方針: O, C, E, A, N のスコアからポジティブに解釈を書いてください。")
+    lines.append("開放性は、高いと好奇心が旺盛、低いと既存の手順の最適化に強いこと。")
+    lines.append("誠実性は、高いと計画性があり、低いと柔軟性があること。")
+    lines.append("外向性は、高いと人前や交流が得意で、低いと一人で集中できること。")
+    lines.append("協調性は、高いと思いやりがあり、低いと率直に伝えることができること。")
+    lines.append("情動性は、高いと感受性が豊かになり、低いと動じにくいこと。")
+    lines.append("禁止: ダーク傾向/ダークトライアド（ナルシシズム、マキャベリズム、サイコパシー）には一切触れないこと。")
+
     return "\n".join(lines)
 
-def build_office_prompt(name: str, levels_6: dict, strengths: list, weaknesses: list) -> str:
+def build_office_prompt(name: str, levels_6: dict, strengths: list, weaknesses: list, dark_levels: dict = None) -> str:
     lines = []
     lines.append("あなたは産業・組織心理学の専門家です。全角600文字以内で日本語の自然な文を書いてください。")
     lines.append(f"対象者名: {name}")
@@ -240,11 +330,37 @@ def build_office_prompt(name: str, levels_6: dict, strengths: list, weaknesses: 
         f"C={levels_6.get('C','')}",
         f"O={levels_6.get('O','')}",
     ]))
+
     if strengths:
-        lines.append("強み（high）: " + "、".join(strengths[:10]))
+        lines.append("強み（high）: " + "、".join(strengths[:MAX_OFFICE_STRENGTHS]))
     if weaknesses:
-        lines.append("改善余地（low）: " + "、".join(weaknesses[:10]))
-    lines.append("要件: 人事・教育担当者向けに配置・育成上の示唆を含め、客観的かつ簡潔に、専門用語を控えめに、1段落でお願いします。特にダークトライアドの傾向がある場合は注意を強調してください。")
+        lines.append("改善余地（low）: " + "、".join(weaknesses[:MAX_OFFICE_WEAKNESSES]))
+
+    if strengths:
+        lines.append("厳守: 肯定的に断定してよいのは high の項目のみ。")
+        lines.append("厳守: high に含まれない項目は、強み/得意/高い/～しやすい等と断定しない。")
+    else:
+        lines.append("厳守: 肯定的な断定表現は禁止。助言は条件付きで簡潔に。")
+
+    lines.append("厳守: high/middle/low は事実。語尾や表現を変えても値は変えない。")
+    lines.append("厳守: 例『高いIQの可能性: low』は『…が低い』と明記。逆転表現禁止。")
+    lines.append("厳守: low は『〜が低い』または『今後伸ばせる余地がある』と明示し、"
+                "高い/得意/～しやすい等へ言い換えない。")
+
+    alerts = []
+    if dark_levels:
+        for k, v in dark_levels.items():
+            sv = str(v).strip().lower()
+            if sv in ("middle", "high"):
+                alerts.append(f"{k}={v}")
+
+    if alerts:
+        lines.append("注意: 以下のダーク傾向でmiddle/highが見られます。")
+        lines.append("ダーク傾向: " + "、".join(alerts))
+        lines.append("評価文では、烙印的な表現を避け、業務上のリスク（利己的判断、衝動性、規範軽視など）の具体例と、建設的対処（役割設計、フィードバック頻度、意思決定プロセスの透明化等）を簡潔に示してください。")
+
+    lines.append("要件: 人事・教育担当者向けに配置・育成上の示唆を含め、客観的かつ簡潔に、1段落のみ。")
+
     return "\n".join(lines)
 
 def generate_comment_via_gpt(prompt: str) -> str:
@@ -253,7 +369,7 @@ def generate_comment_via_gpt(prompt: str) -> str:
             # model="gpt-5",
             model="gpt-4o-mini",
             input=prompt,
-            temperature=0.7,
+            temperature=0.1,
             max_output_tokens=512,
         )
         return resp.output_text.strip()
@@ -282,7 +398,9 @@ def fill_person_docx(row: pd.Series, radar_buf, out_path: str):
         "A": label_from_score(row.get("協調性（利他性・共感性）")),
         "N": label_from_score(row.get("情動性（不安傾向）")),
     }
-    strengths, weaknesses = detect_strength_weakness(row, start_col=7)
+
+    # strengths, weaknesses = collect_level_flags(row, exclude_cols=DARK_TRAIT_COLS)
+    strengths, weaknesses = [], []
 
     text_map = {
         "[Name]": name,
@@ -297,7 +415,6 @@ def fill_person_docx(row: pd.Series, radar_buf, out_path: str):
         "[LEVEL_E]": levels["E"],
         "[LEVEL_A]": levels["A"],
         "[LEVEL_N]": levels["N"],
-        # 新規: 素点をそのまま
         "[value_hexaco_O]": raw_vals["O"],
         "[value_hexaco_C]": raw_vals["C"],
         "[value_hexaco_E]": raw_vals["E"],
@@ -309,6 +426,7 @@ def fill_person_docx(row: pd.Series, radar_buf, out_path: str):
     # コメント
     prompt = build_person_prompt(name, levels, strengths, weaknesses)
     comment = generate_comment_via_gpt(prompt)
+    comment = sanitize_comment(comment)
     comment = trim_to_fullwidth_chars(comment, PERSON_COMMENT_LIMIT)
     replace_text_placeholders(doc, {"[comment_about_5_factors]": comment, "[COMMENT]": comment})
 
@@ -321,7 +439,7 @@ def fill_person_docx(row: pd.Series, radar_buf, out_path: str):
     apply_font(doc, FONT_NAME)
 
     doc.save(out_path)
-    # convert(out_path, os.path.splitext(out_path)[0] + ".pdf")
+    convert(out_path, os.path.splitext(out_path)[0] + ".pdf")
 
 def fill_office_docx(row: pd.Series, radar_buf, out_path: str):
     """事務局用（6因子）"""
@@ -345,7 +463,11 @@ def fill_office_docx(row: pd.Series, radar_buf, out_path: str):
         "C": label_from_score(row.get("誠実性（計画性）")),
         "O": label_from_score(row.get("開放性（好奇心）")),
     }
-    strengths, weaknesses = detect_strength_weakness(row, start_col=7)
+
+    strengths, weaknesses = collect_level_flags(row, exclude_cols=DARK_TRAIT_COLS)
+
+    strengths = sort_by_priority_strength(strengths)
+    weaknesses = sort_by_priority_weakness(weaknesses)
 
     text_map = {
         "[Name]": name,
@@ -362,7 +484,6 @@ def fill_office_docx(row: pd.Series, radar_buf, out_path: str):
         "[LEVEL_A]": levels["A"],
         "[LEVEL_C]": levels["C"],
         "[LEVEL_O]": levels["O"],
-        # 新規: 素点をそのまま
         "[value_hexaco_H]": raw_vals["H"],
         "[value_hexaco_E]": raw_vals["E"],
         "[value_hexaco_X]": raw_vals["X"],
@@ -372,8 +493,13 @@ def fill_office_docx(row: pd.Series, radar_buf, out_path: str):
     }
     replace_text_placeholders(doc, text_map)
 
+    dark_levels = {}
+    for col in DARK_TRAIT_COLS:
+        if col in row.index:
+            dark_levels[col] = row[col]
+
     # コメント
-    prompt = build_office_prompt(name, levels, strengths, weaknesses)
+    prompt = build_office_prompt(name, levels, strengths, weaknesses, dark_levels=dark_levels)
     comment = generate_comment_via_gpt(prompt)
     comment = trim_to_fullwidth_chars(comment, OFFICE_COMMENT_LIMIT)
     replace_text_placeholders(doc, {"[comment_about_6_factors_and_darktrait]": comment, "[COMMENT]": comment})
@@ -387,7 +513,7 @@ def fill_office_docx(row: pd.Series, radar_buf, out_path: str):
     apply_font(doc, FONT_NAME)
 
     doc.save(out_path)
-    # convert(out_path, os.path.splitext(out_path)[0] + ".pdf")
+    convert(out_path, os.path.splitext(out_path)[0] + ".pdf")
 
 # ------------------ メイン ------------------
 

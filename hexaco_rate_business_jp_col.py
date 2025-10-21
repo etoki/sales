@@ -1,10 +1,10 @@
 import pandas as pd
 
 # data.csvを読み込む、UTF-8じゃないとだめ
-file_path = 'csv/20250728_koide.csv'
+file_path = 'csv/20251020_data.csv'
 data = pd.read_csv(file_path)
 
-output_file_path = 'csv/output_20250728.csv'  # 出力ファイルのパス
+output_file_path = 'csv/output_20251020.csv'  # 出力ファイルのパス
 
 # 閾値の設定
 l = 0.45
