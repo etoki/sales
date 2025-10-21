@@ -20,18 +20,26 @@ client = OpenAI(api_key="")
 
 
 # ------------------ コンフィグ ------------------
-CSV_PATH = "csv/20251020_nttdatauniv_test.csv"
-# CSV_PATH = "csv/20251020_nttdatauniv.csv"
+# CSV_PATH = "csv/20250417_nttdata_ddd.csv"
+# CSV_PATH = "csv/20251020_nttdatauniv_test.csv"
+CSV_PATH = "csv/20251020_nttdatauniv.csv"
 TEMPLATE_PERSON = "tmp/HEXACOfbレポート_本人用_tmp.docx"
 TEMPLATE_OFFICE = "tmp/HEXACOfbレポート_事務局用_tmp.docx"
 OUT_DIR = "out/"
-os.makedirs(OUT_DIR, exist_ok=True)
+OUT_PERSON_WORD = os.path.join(OUT_DIR, "本人用/word")
+OUT_PERSON_PDF  = os.path.join(OUT_DIR, "本人用/pdf")
+OUT_OFFICE_WORD = os.path.join(OUT_DIR, "事務局用/word")
+OUT_OFFICE_PDF  = os.path.join(OUT_DIR, "事務局用/pdf")
+for d in [OUT_PERSON_WORD, OUT_PERSON_PDF, OUT_OFFICE_WORD, OUT_OFFICE_PDF]:
+    os.makedirs(d, exist_ok=True)
 
 # 画像サイズ（高さ px）— ここを変えるだけで出力サイズを統一変更できます
 RADAR_HEIGHT_PX = 300
 
 # フォント（テンプレ内テキストの標準フォントとして適用を試みます）
 FONT_NAME = "MS Gothic"
+
+DARK_TRAIT_COLS = ["ダーク傾向", "ナルシシズム", "サイコパシー", "マキャベリズム"]
 
 # ------------------ ユーティリティ ------------------
 
@@ -47,7 +55,7 @@ def sanitize_filename(name: str) -> str:
 def label_from_score(x: float) -> str:
     if pd.isna(x):
         return "中"
-    if x >= 4.0:
+    if x >= 3.8:
         return "高い"
     elif x < 2.5:
         return "低い"
@@ -61,43 +69,6 @@ def fmt1(x) -> str:
     except Exception:
         return ""
 
-FORBIDDEN_PAT = re.compile(
-    r'(正直・?謙虚さ|HEXACO|H要因|ダーク(?:・?トライアド)|ナルシシズム|マキャベリ[アャ]ニズム|サイコパシー)',
-    flags=re.IGNORECASE
-)
-
-def sanitize_comment(text: str) -> str:
-    # 正規化（全角/半角のゆれを軽減）
-    text = unicodedata.normalize("NFKC", text)
-
-    cleaned_lines = []
-    for raw_line in text.splitlines():
-        line = raw_line.rstrip()
-
-        # 箇条書き（・, -, *, ● など）は「行」ごと判定して消す
-        if re.match(r'^\s*[・\-*●◎◼︎▪︎●]', line):
-            if FORBIDDEN_PAT.search(line):
-                continue
-            cleaned_lines.append(line)
-            continue
-
-        # 通常文は「文」単位で分割して禁止語を含む文だけ落とす
-        sentences = re.split(r'(?<=[。．！？!?」』])\s*', line)  # 句点や閉じ括弧の直後で分割
-        kept = [s for s in sentences if s and not FORBIDDEN_PAT.search(s)]
-
-        # 何か残ったら連結、全落ちならこの行はスキップ
-        if kept:
-            joined = ''.join(kept)
-
-            # 連続句読点や空白の整理（見た目の崩れ防止）
-            joined = re.sub(r'[ 　]{2,}', ' ', joined)              # 連続スペース
-            joined = re.sub(r'([。．！？!?])\1+', r'\1', joined)    # 句読点の重複
-            cleaned_lines.append(joined)
-
-    # 余分な空行を潰して返す
-    out = '\n'.join([l for l in cleaned_lines if l.strip()])
-    return out.strip()
-
 def trim_to_fullwidth_chars(text: str, limit: int) -> str:
     if text is None:
         return ""
@@ -109,8 +80,6 @@ def trim_to_fullwidth_chars(text: str, limit: int) -> str:
     if last_marume >= 0:
         s = s[:last_marume+1]
     return s
-
-DARK_TRAIT_COLS = ["ダーク傾向", "ナルシシズム", "サイコパシー", "マキャベリズム"]
 
 def collect_level_flags(row, exclude_cols=None, include_middle: bool = False):
     """
@@ -294,29 +263,71 @@ PERSON_COMMENT_LIMIT = 200
 OFFICE_COMMENT_LIMIT  = 600
 
 MAX_OFFICE_STRENGTHS = 10
-MAX_OFFICE_WEAKNESSES = 3
+MAX_OFFICE_WEAKNESSES = 5
 
-def build_person_prompt(name: str, levels_5: dict, strengths: list, weaknesses: list) -> str:
-    lines = []
-    lines.append("あなたは産業・組織心理学の専門家です。全角200文字以内で日本語の自然な文を書いてください。")
-    # lines.append(f"対象者名: {name}")
-    lines.append("HEXACO（本人用5因子）の水準: " + ", ".join([
-        f"O={levels_5.get('O','')}",
-        f"C={levels_5.get('C','')}",
-        f"E={levels_5.get('E','')}",
-        f"A={levels_5.get('A','')}",
-        f"N={levels_5.get('N','')}",
-    ]))
+def build_person_prompt(name: str, scores: dict, levels: dict) -> str:
+    """
+    name: 受検者名（例: "山田太郎"）
+    scores: {"O": 4.3, "C": 3.5, "E": 2.6, "A": 3.7, "N": 3.1}
+    levels: {"O": "high"|"middle"|"low", ... for O,C,E,A,N}
+    """
+    # ここでNG語彙(禁止ワード)は「指示として」渡すだけ。生成後の置換等はしない。
+    prompt = f"""
+あなたは日本語の文章作成アシスタントです。以下の入力(JSON)に基づき、
+受検者本人向けに Big Five（O, C, E, A, N）の特徴コメントを作成してください。
 
-    lines.append("出力方針: O, C, E, A, N のスコアからポジティブに解釈を書いてください。")
-    lines.append("開放性は、高いと好奇心が旺盛、低いと既存の手順の最適化に強いこと。")
-    lines.append("誠実性は、高いと計画性があり、低いと柔軟性があること。")
-    lines.append("外向性は、高いと人前や交流が得意で、低いと一人で集中できること。")
-    lines.append("協調性は、高いと思いやりがあり、低いと率直に伝えることができること。")
-    lines.append("情動性は、高いと感受性が豊かになり、低いと動じにくいこと。")
-    lines.append("禁止: ダーク傾向/ダークトライアド（ナルシシズム、マキャベリズム、サイコパシー）には一切触れないこと。")
+# 目的
+- 本人が前向きに理解・活用できる1段落（150〜220字程度、丁寧語）。
+- 各特性はその水準（high/middle/low）に対応する面のみを記述し、反対側の特性内容は一切書かない。
 
-    return "\n".join(lines)
+# 出力要件
+- 日本語、丁寧語。1段落のみ。数値や記号は書かない（スコアの具体数字は書かない）。
+- 両面併記は禁止（例：「〜一方で、〜も」は不可）。「バランスが取れている」等の曖昧評価は禁止。
+- 最後に1つだけ実践的な行動示唆を入れる（例：「〜を日々メモすると良いでしょう。」）。
+
+# 特性別ガイド（本人用）
+- O 開放性:
+  - high: 新規性・探究心・幅広い関心・学習意欲・発想の柔軟さ
+    - NG語彙: 「既存手順の最適化」「決まった型を守るのが得意」「定型化」「標準化」「保守的」
+  - middle: 新しい考えに前向きだが現実的に吟味／必要に応じて取り入れる（両面同時称賛は不可）
+  - low: 実務志向・手順安定・既存資源の磨き込み・標準化（「好奇心が非常に強い」等は不可）
+
+- C 誠実性:
+  - high: 計画性・継続力・締切厳守・準備・自己管理
+  - middle: 計画と柔軟さを状況で切替（矛盾する二律背反の同時称賛は不可）
+  - low: 臨機応変・試行錯誤・スピード重視（緻密な計画で着実は不可）
+
+- E 外向性:
+  - high: 社交性・発信力・対人刺激で活性化
+  - middle: 必要な場面で発信／集中作業も対人も状況で使い分け（極端表現は不可）
+  - low: 集中没頭・聞き手志向・落ち着いた関わり（人前での発信が得意 は不可）
+
+- A 協調性:
+  - high: 共感・配慮・信頼形成・協働志向
+  - middle: 意見を伝えつつ関係配慮／折衷的
+  - low: 率直・交渉・境界設定・合理的主張（過度な迎合は不可）
+
+- N 情動性（逆尺）:
+  - high: 感受性・慎重・リスク予期・周囲への気配り（「動じない」は不可）
+  - middle: 状況に応じた切替
+  - low: 安定・平静・切替の早さ（「繊細で揺れやすい」は不可）
+
+# フォーマット
+- 出力は本文のみ。前置き、見出し、箇条書きは禁止。
+- 具体的行動示唆を文末1つだけ入れる。
+
+# 入力(JSON)
+{{
+  "name": "{name}",
+  "scores": {scores},
+  "levels": {levels}
+}}
+
+# 例（出力イメージ：これは生成の参考であり、数値は書かない）
+例: 新しい考えを素直に取り入れ、学びを行動に移せる人です。計画を立てて進めつつ、必要な場面ではやり方を見直して改善できます。人前でも個人作業でも集中を保ち、周囲に配慮しながら意見を伝えられます。状況を丁寧に見極める慎重さも活かしています。日々の気づきを短く記録し、次の挑戦にすぐ試すと良いでしょう。
+"""
+    return prompt.strip()
+
 
 def build_office_prompt(name: str, levels_6: dict, strengths: list, weaknesses: list, dark_levels: dict = None) -> str:
     lines = []
@@ -366,7 +377,6 @@ def build_office_prompt(name: str, levels_6: dict, strengths: list, weaknesses: 
 def generate_comment_via_gpt(prompt: str) -> str:
     try:
         resp = client.responses.create(
-            # model="gpt-5",
             model="gpt-4o-mini",
             input=prompt,
             temperature=0.1,
@@ -378,12 +388,11 @@ def generate_comment_via_gpt(prompt: str) -> str:
 
 # ------------------ DOCX生成 ------------------
 
-def fill_person_docx(row: pd.Series, radar_buf, out_path: str):
+def fill_person_docx(row: pd.Series, radar_buf, out_docx_path: str, out_pdf_path: str):
     """本人用（Hなし／O,C,E,A,Nの5因子）"""
     doc = Document(TEMPLATE_PERSON)
 
     name = str(row.get("Name", "NoName"))
-    # 元データの素点（1桁小数）を直接埋め込む
     raw_vals = {
         "O": fmt1(row.get("開放性（好奇心）")),
         "C": fmt1(row.get("誠実性（計画性）")),
@@ -398,10 +407,6 @@ def fill_person_docx(row: pd.Series, radar_buf, out_path: str):
         "A": label_from_score(row.get("協調性（利他性・共感性）")),
         "N": label_from_score(row.get("情動性（不安傾向）")),
     }
-
-    # strengths, weaknesses = collect_level_flags(row, exclude_cols=DARK_TRAIT_COLS)
-    strengths, weaknesses = [], []
-
     text_map = {
         "[Name]": name,
         "[YYYY/MM/DD]": jst_today_str(),
@@ -423,10 +428,23 @@ def fill_person_docx(row: pd.Series, radar_buf, out_path: str):
     }
     replace_text_placeholders(doc, text_map)
 
+    def to_float(v):
+        if v is None or v == "":
+            return None
+        try:
+            return float(v)
+        except Exception:
+            # 余裕があればここでログ出し
+            return None
+
+    scores = {k: to_float(v) for k, v in raw_vals.items()}
+
+    name = str(row.get("Name", "")).strip()
+
     # コメント
-    prompt = build_person_prompt(name, levels, strengths, weaknesses)
+    prompt = build_person_prompt(name=name, scores=scores, levels=levels)
+
     comment = generate_comment_via_gpt(prompt)
-    comment = sanitize_comment(comment)
     comment = trim_to_fullwidth_chars(comment, PERSON_COMMENT_LIMIT)
     replace_text_placeholders(doc, {"[comment_about_5_factors]": comment, "[COMMENT]": comment})
 
@@ -438,10 +456,10 @@ def fill_person_docx(row: pd.Series, radar_buf, out_path: str):
     # フォント適用
     apply_font(doc, FONT_NAME)
 
-    doc.save(out_path)
-    convert(out_path, os.path.splitext(out_path)[0] + ".pdf")
+    doc.save(out_docx_path)
+    convert(out_docx_path, out_pdf_path)
 
-def fill_office_docx(row: pd.Series, radar_buf, out_path: str):
+def fill_office_docx(row: pd.Series, radar_buf, out_docx_path: str, out_pdf_path: str):
     """事務局用（6因子）"""
     doc = Document(TEMPLATE_OFFICE)
 
@@ -512,8 +530,8 @@ def fill_office_docx(row: pd.Series, radar_buf, out_path: str):
     # フォント適用
     apply_font(doc, FONT_NAME)
 
-    doc.save(out_path)
-    convert(out_path, os.path.splitext(out_path)[0] + ".pdf")
+    doc.save(out_docx_path)
+    convert(out_docx_path, out_pdf_path)
 
 # ------------------ メイン ------------------
 
@@ -561,11 +579,20 @@ def main():
             fill_alpha=0.20,
         )
 
-        # DOCX生成
-        fill_person_docx(row, buf_p, os.path.join(OUT_DIR, f"{safe_name}_本人用.docx"))
-        fill_office_docx(row, buf_o, os.path.join(OUT_DIR, f"{safe_name}_事務局用.docx"))
-        print(f"Generated: {os.path.join(OUT_DIR, f'{safe_name}_本人用.docx')}")
-        print(f"Generated: {os.path.join(OUT_DIR, f'{safe_name}_事務局用.docx')}")
+        # ---- パスを作る（4フォルダに振り分ける）----
+        person_docx = os.path.join(OUT_PERSON_WORD, f"{safe_name}_本人用.docx")
+        person_pdf  = os.path.join(OUT_PERSON_PDF,  f"{safe_name}_本人用.pdf")
+        office_docx = os.path.join(OUT_OFFICE_WORD, f"{safe_name}_事務局用.docx")
+        office_pdf  = os.path.join(OUT_OFFICE_PDF,  f"{safe_name}_事務局用.pdf")
+
+        # ---- 出力 ----
+        fill_person_docx(row, buf_p, person_docx, person_pdf)
+        fill_office_docx(row, buf_o, office_docx, office_pdf)
+
+        print(f"Generated: {person_docx}")
+        print(f"Generated: {person_pdf}")
+        print(f"Generated: {office_docx}")
+        print(f"Generated: {office_pdf}")
 
 if __name__ == "__main__":
     main()

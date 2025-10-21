@@ -7,8 +7,10 @@ data = pd.read_csv(file_path)
 output_file_path = 'csv/output_20251020.csv'  # 出力ファイルのパス
 
 # 閾値の設定
-l = 0.45
-h = 0.7
+h = 4
+l = 3
+res_l = 0.45
+res_h = 0.7
 
 
 # HEXACOスコアから指標を計算する関数
@@ -17,252 +19,252 @@ def calculate_indicators(row):
     dark_trend = (0.6 if row['Honesty-Humility'] <= 2.5 else 0) \
                 + (0.4 if row['Agreeableness'] <= 2.5 else 0)
     narcissism = (0.3 if row['Honesty-Humility'] <= 2.5 else 0) \
-                + (0.3 if row['Agreeableness'] <= 3.0 else 0) \
-                + (0.2 if row['Extraversion'] >= 4.0 else 0) \
-                + (0.2 if row['Openness'] >= 4.0 else 0)
+                + (0.3 if row['Agreeableness'] <= l else 0) \
+                + (0.2 if row['Extraversion'] >= h else 0) \
+                + (0.2 if row['Openness'] >= h else 0)
     psychopathy = (0.3 if row['Honesty-Humility'] <= 2.5 else 0) \
                 + (0.3 if row['Agreeableness'] <= 2.5 else 0) \
                 + (0.2 if row['Emotionality'] <= 2.5 else 0) \
-                + (0.1 if row['Extraversion'] <= 3.0 else 0) \
-                + (0.1 if row['Conscientiousness'] <= 3.0 else 0)
+                + (0.1 if row['Extraversion'] <= l else 0) \
+                + (0.1 if row['Conscientiousness'] <= l else 0)
     machiavellianism = (0.3 if row['Honesty-Humility'] <= 2.5 else 0) \
                     + (0.3 if row['Agreeableness'] <= 2.5 else 0) \
-                    + (0.2 if row['Emotionality'] <= 3.0 else 0) \
-                    + (0.1 if row['Extraversion'] <= 3.0 else 0) \
+                    + (0.2 if row['Emotionality'] <= l else 0) \
+                    + (0.1 if row['Extraversion'] <= l else 0) \
                     + (0.1 if row['Openness'] >= 3.0 else 0)
-    highIQ = (0.7 if row['Openness'] >= 4 else 0) \
-            + (0.3 if row['Emotionality'] <= 3 else 0)
-    highEQ = (0.25 if row['Extraversion'] >= 4 else 0) \
-            + (0.25 if row['Conscientiousness'] >= 4 else 0) \
-            + (0.25 if row['Agreeableness'] >= 4 else 0) \
-            + (0.25 if row['Openness'] >= 4 else 0)
-    critical_thinking = (0.6 if row['Openness'] >= 4 else 0) \
-                        + (0.2 if row['Agreeableness'] >= 4 else 0) \
-                        + (0.2 if row['Emotionality'] <= 3 else 0)
-    effort = 1 if row['Conscientiousness'] >= 4 else 0.5 if row['Conscientiousness'] >= 3.5 else 0
-    high_motivation = (0.3 if row['Honesty-Humility'] >= 4 else 0) \
-                    + (0.1 if row['Emotionality'] >= 4 else 0) \
-                    + (0.1 if row['Extraversion'] >= 4 else 0) \
-                    + (0.3 if row['Conscientiousness'] >= 4 else 0) \
-                    + (0.2 if row['Openness'] >= 4 else 0)
-    sdt_autonomy = (0.33 if row['Extraversion'] >= 4 else 0) \
-                + (0.33 if row['Agreeableness'] >= 4 else 0) \
-                + (0.34 if row['Emotionality'] <= 3 else 0)
-    sdt_competent = (0.33 if row['Extraversion'] >= 4 else 0) \
-                    + (0.33 if row['Conscientiousness'] >= 4 else 0) \
-                    + (0.34 if row['Emotionality'] <= 3 else 0)
-    sdt_relation = (0.5 if row['Extraversion'] >= 4 else 0) \
-                + (0.5 if row['Emotionality'] <= 3 else 0)
-    feel_happiness = (0.33 if row['Extraversion'] >= 4 else 0) \
-                    + (0.33 if row['Agreeableness'] >= 4 else 0) \
-                    + (0.34 if row['Emotionality'] <= 3 else 0)
-    feel_lucky = (0.33 if row['Extraversion'] >= 4 else 0) \
-                + (0.33 if row['Openness'] >= 4 else 0) \
-                + (0.34 if row['Emotionality'] <= 3 else 0)
-    high_self_efficacy = (0.33 if row['Extraversion'] >= 4 else 0) \
-                        + (0.33 if row['Conscientiousness'] >= 4 else 0) \
-                        + (0.34 if row['Emotionality'] <= 3 else 0)
-    positive_thinking = (0.35 if row['Extraversion'] >= 4 else 0) \
-                        + (0.1 if row['Openness'] >= 4 else 0) \
-                        + (0.1 if row['Agreeableness'] >= 4 else 0) \
-                        + (0.35 if row['Conscientiousness'] >= 4 else 0) \
-                        + (0.1 if row['Emotionality'] <= 3 else 0)
-    resilience = (0.5 if row['Honesty-Humility'] >= 4 else 0) \
-                + (0.5 if row['Extraversion'] >= 4 else 0)
-    coping_problem_solving = (0.25 if row['Extraversion'] >= 4 else 0) \
-                            + (0.25 if row['Conscientiousness'] >= 4 else 0) \
-                            + (0.25 if row['Emotionality'] <= 3 else 0) \
-                            + (0.25 if row['Openness'] >= 4 else 0)
-    coping_emotional_support = (0.33 if row['Extraversion'] >= 4 else 0) \
-                            + (0.33 if row['Agreeableness'] >= 4 else 0) \
-                            + (0.34 if row['Emotionality'] >= 4 else 0)
-    coping_recreation = (0.33 if row['Extraversion'] >= 4 else 0) \
-                    + (0.33 if row['Conscientiousness'] >= 4 else 0) \
-                    + (0.34 if row['Emotionality'] >= 4 else 0)
-    coping_cognitive_restructuring = (0.25 if row['Extraversion'] >= 4 else 0) \
-                                + (0.25 if row['Conscientiousness'] >= 4 else 0) \
-                                + (0.25 if row['Emotionality'] <= 3 else 0) \
-                                + (0.25 if row['Agreeableness'] >= 4 else 0)
-    coping_acceptance = (0.5 if row['Agreeableness'] >= 4 else 0) \
-                        + (0.5 if row['Emotionality'] <= 3 else 0)
-    coping_avoidance = (0.5 if row['Conscientiousness'] <= 3 else 0) \
-                    + (0.5 if row['Emotionality'] >= 4 else 0)
-    coping_denial = (0.33 if row['Conscientiousness'] <= 3 else 0) \
-                + (0.33 if row['Agreeableness'] <= 3 else 0) \
-                + (0.34 if row['Emotionality'] >= 4 else 0)
-    coping_wishful_thinking = (0.5 if row['Openness'] >= 4 else 0) \
-                            + (0.5 if row['Emotionality'] >= 4 else 0)
-    coping_withdrawal = (0.5 if row['Openness'] >= 4 else 0) \
-                    + (0.5 if row['Emotionality'] >= 4 else 0)
-    coping_negative_emotion = (0.33 if row['Conscientiousness'] <= 3 else 0) \
-                            + (0.33 if row['Agreeableness'] <= 3 else 0) \
-                            + (0.34 if row['Emotionality'] >= 4 else 0)
+    highIQ = (0.7 if row['Openness'] >= h else 0) \
+            + (0.3 if row['Emotionality'] <= l else 0)
+    highEQ = (0.25 if row['Extraversion'] >= h else 0) \
+            + (0.25 if row['Conscientiousness'] >= h else 0) \
+            + (0.25 if row['Agreeableness'] >= h else 0) \
+            + (0.25 if row['Openness'] >= h else 0)
+    critical_thinking = (0.6 if row['Openness'] >= h else 0) \
+                        + (0.2 if row['Agreeableness'] >= h else 0) \
+                        + (0.2 if row['Emotionality'] <= l else 0)
+    effort = 1 if row['Conscientiousness'] >= h else 0.5 if row['Conscientiousness'] >= 3.5 else 0
+    high_motivation = (0.3 if row['Honesty-Humility'] >= h else 0) \
+                    + (0.1 if row['Emotionality'] >= h else 0) \
+                    + (0.1 if row['Extraversion'] >= h else 0) \
+                    + (0.3 if row['Conscientiousness'] >= h else 0) \
+                    + (0.2 if row['Openness'] >= h else 0)
+    sdt_autonomy = (0.33 if row['Extraversion'] >= h else 0) \
+                + (0.33 if row['Agreeableness'] >= h else 0) \
+                + (0.34 if row['Emotionality'] <= l else 0)
+    sdt_competent = (0.33 if row['Extraversion'] >= h else 0) \
+                    + (0.33 if row['Conscientiousness'] >= h else 0) \
+                    + (0.34 if row['Emotionality'] <= l else 0)
+    sdt_relation = (0.5 if row['Extraversion'] >= h else 0) \
+                + (0.5 if row['Emotionality'] <= l else 0)
+    feel_happiness = (0.33 if row['Extraversion'] >= h else 0) \
+                    + (0.33 if row['Agreeableness'] >= h else 0) \
+                    + (0.34 if row['Emotionality'] <= l else 0)
+    feel_lucky = (0.33 if row['Extraversion'] >= h else 0) \
+                + (0.33 if row['Openness'] >= h else 0) \
+                + (0.34 if row['Emotionality'] <= l else 0)
+    high_self_efficacy = (0.33 if row['Extraversion'] >= h else 0) \
+                        + (0.33 if row['Conscientiousness'] >= h else 0) \
+                        + (0.34 if row['Emotionality'] <= l else 0)
+    positive_thinking = (0.35 if row['Extraversion'] >= h else 0) \
+                        + (0.1 if row['Openness'] >= h else 0) \
+                        + (0.1 if row['Agreeableness'] >= h else 0) \
+                        + (0.35 if row['Conscientiousness'] >= h else 0) \
+                        + (0.1 if row['Emotionality'] <= l else 0)
+    resilience = (0.5 if row['Honesty-Humility'] >= h else 0) \
+                + (0.5 if row['Extraversion'] >= h else 0)
+    coping_problem_solving = (0.25 if row['Extraversion'] >= h else 0) \
+                            + (0.25 if row['Conscientiousness'] >= h else 0) \
+                            + (0.25 if row['Emotionality'] <= l else 0) \
+                            + (0.25 if row['Openness'] >= h else 0)
+    coping_emotional_support = (0.33 if row['Extraversion'] >= h else 0) \
+                            + (0.33 if row['Agreeableness'] >= h else 0) \
+                            + (0.34 if row['Emotionality'] >= h else 0)
+    coping_recreation = (0.33 if row['Extraversion'] >= h else 0) \
+                    + (0.33 if row['Conscientiousness'] >= h else 0) \
+                    + (0.34 if row['Emotionality'] >= h else 0)
+    coping_cognitive_restructuring = (0.25 if row['Extraversion'] >= h else 0) \
+                                + (0.25 if row['Conscientiousness'] >= h else 0) \
+                                + (0.25 if row['Emotionality'] <= l else 0) \
+                                + (0.25 if row['Agreeableness'] >= h else 0)
+    coping_acceptance = (0.5 if row['Agreeableness'] >= h else 0) \
+                        + (0.5 if row['Emotionality'] <= l else 0)
+    coping_avoidance = (0.5 if row['Conscientiousness'] <= l else 0) \
+                    + (0.5 if row['Emotionality'] >= h else 0)
+    coping_denial = (0.33 if row['Conscientiousness'] <= l else 0) \
+                + (0.33 if row['Agreeableness'] <= l else 0) \
+                + (0.34 if row['Emotionality'] >= h else 0)
+    coping_wishful_thinking = (0.5 if row['Openness'] >= h else 0) \
+                            + (0.5 if row['Emotionality'] >= h else 0)
+    coping_withdrawal = (0.5 if row['Openness'] >= h else 0) \
+                    + (0.5 if row['Emotionality'] >= h else 0)
+    coping_negative_emotion = (0.33 if row['Conscientiousness'] <= l else 0) \
+                            + (0.33 if row['Agreeableness'] <= l else 0) \
+                            + (0.34 if row['Emotionality'] >= h else 0)
     coping_substance_use = (0.33 if row['Conscientiousness'] <= 4 else 0) \
                         + (0.33 if row['Agreeableness'] <= 4 else 0) \
-                        + (0.34 if row['Emotionality'] >= 4 else 0)
-    coping_religious = (0.5 if row['Agreeableness'] >= 4 else 0) \
-                    + (0.5 if row['Openness'] <= 3 else 0)
+                        + (0.34 if row['Emotionality'] >= h else 0)
+    coping_religious = (0.5 if row['Agreeableness'] >= h else 0) \
+                    + (0.5 if row['Openness'] <= l else 0)
 
-    risk_humble_calm = 1 if row['Conscientiousness'] >= 4 else 0.5 if row['Conscientiousness'] >= 3.5 else 0
-    # risk_humble_calm = 1 if row['Conscientiousness'] >= 4 else 0
-    risk_low_regret = 1 if row['Openness'] >= 4 else 0.5 if row['Openness'] >= 3.5 else 0
-    # risk_low_regret = 1 if row['Openness'] >= 4 else 0
-    risk_challenge = (0.6 if row['Openness'] >= 4 else 0) \
-                    + (0.4 if row['Conscientiousness'] <= 3 else 0)
-    risk_strong_bias = 1 if row['Emotionality'] >= 4 else 0.5 if row['Emotionality'] >= 3.5 else 0
-    # risk_strong_bias = 1 if row['Emotionality'] >= 4 else 0
+    risk_humble_calm = 1 if row['Conscientiousness'] >= h else 0.5 if row['Conscientiousness'] >= 3.5 else 0
+    # risk_humble_calm = 1 if row['Conscientiousness'] >= h else 0
+    risk_low_regret = 1 if row['Openness'] >= h else 0.5 if row['Openness'] >= 3.5 else 0
+    # risk_low_regret = 1 if row['Openness'] >= h else 0
+    risk_challenge = (0.6 if row['Openness'] >= h else 0) \
+                    + (0.4 if row['Conscientiousness'] <= l else 0)
+    risk_strong_bias = 1 if row['Emotionality'] >= h else 0.5 if row['Emotionality'] >= 3.5 else 0
+    # risk_strong_bias = 1 if row['Emotionality'] >= h else 0
     
     # 価値観・認識
-    spirituality = (0.6 if row['Openness'] >= 4 else 0) \
-                 + (0.4 if row['Agreeableness'] >= 4 else 0)
-    like_power = (0.5 if row['Extraversion'] >= 4 else 0) \
-               + (0.5 if row['Agreeableness'] <= 3 else 0)
-    like_achievement = (0.5 if row['Extraversion'] >= 4 else 0) \
-                  + (0.5 if row['Agreeableness'] <= 3 else 0)
-    like_pleasure = (0.5 if row['Extraversion'] >= 4 else 0) \
-                  + (0.5 if row['Conscientiousness'] <= 3 else 0)
-    like_exciting = (0.5 if row['Extraversion'] >= 4 else 0) \
-                  + (0.5 if row['Openness'] >= 4 else 0)
-    like_independence = (0.5 if row['Extraversion'] >= 4 else 0) \
-                      + (0.5 if row['Openness'] >= 4 else 0)
-    like_universal = (0.5 if row['Openness'] >= 4 else 0) \
-                    + (0.5 if row['Agreeableness'] >= 4 else 0)
-    like_philanthropy = 1 if row['Agreeableness'] >= 4 else 0.5 if row['Agreeableness'] >= 3.5 else 0
-    # like_philanthropy = 1 if row['Agreeableness'] >= 4 else 0
-    like_harmony = (0.33 if row['Openness'] <= 3 else 0) \
-                + (0.33 if row['Agreeableness'] >= 4 else 0) \
-                + (0.34 if row['Conscientiousness'] >= 4 else 0)
-    like_tradition = (0.33 if row['Extraversion'] <= 3 else 0) \
-                    + (0.33 if row['Openness'] <= 3 else 0) \
-                    + (0.34 if row['Agreeableness'] >= 4 else 0)
-    like_safety = (0.5 if row['Openness'] <= 3 else 0) \
-                + (0.5 if row['Conscientiousness'] >= 4 else 0)
-    politics_left = 1 if row['Openness'] >= 4 else 0.5 if row['Openness'] >= 3.5 else 0
-    # politics_left = 1 if row['Openness'] >= 4 else 0
-    politics_right = (0.33 if row['Honesty-Humility'] <= 3 else 0) \
-                    + (0.33 if row['Openness'] <= 3 else 0) \
-                    + (0.34 if row['Conscientiousness'] >= 4 else 0)
-    proenvironmental_attitudes = (0.5 if row['Honesty-Humility'] >= 4 else 0) \
-                                + (0.5 if row['Openness'] >= 4 else 0)
-    prejudice_rwa = (0.5 if row['Conscientiousness'] >= 4 else 0) \
-                    + (0.5 if row['Openness'] <= 3 else 0)
-    prejudice_sdo = 1 if row['Agreeableness'] <= 2.5 else 0.5 if row['Agreeableness'] <= 3.0 else 0
-    # prejudice_sdo = 1 if row['Agreeableness'] <= 3 else 0
-    beliefin_unjust_world = (0.167 if row['Honesty-Humility'] <= 3 else 0) \
-                          + (0.167 if row['Emotionality'] >= 4 else 0) \
-                          + (0.167 if row['Extraversion'] <= 3 else 0) \
-                          + (0.167 if row['Agreeableness'] <= 3 else 0) \
-                          + (0.166 if row['Conscientiousness'] <= 3 else 0) \
-                          + (0.166 if row['Openness'] <= 3 else 0)
+    spirituality = (0.6 if row['Openness'] >= h else 0) \
+                 + (0.4 if row['Agreeableness'] >= h else 0)
+    like_power = (0.5 if row['Extraversion'] >= h else 0) \
+               + (0.5 if row['Agreeableness'] <= l else 0)
+    like_achievement = (0.5 if row['Extraversion'] >= h else 0) \
+                  + (0.5 if row['Agreeableness'] <= l else 0)
+    like_pleasure = (0.5 if row['Extraversion'] >= h else 0) \
+                  + (0.5 if row['Conscientiousness'] <= l else 0)
+    like_exciting = (0.5 if row['Extraversion'] >= h else 0) \
+                  + (0.5 if row['Openness'] >= h else 0)
+    like_independence = (0.5 if row['Extraversion'] >= h else 0) \
+                      + (0.5 if row['Openness'] >= h else 0)
+    like_universal = (0.5 if row['Openness'] >= h else 0) \
+                    + (0.5 if row['Agreeableness'] >= h else 0)
+    like_philanthropy = 1 if row['Agreeableness'] >= h else 0.5 if row['Agreeableness'] >= 3.5 else 0
+    # like_philanthropy = 1 if row['Agreeableness'] >= h else 0
+    like_harmony = (0.33 if row['Openness'] <= l else 0) \
+                + (0.33 if row['Agreeableness'] >= h else 0) \
+                + (0.34 if row['Conscientiousness'] >= h else 0)
+    like_tradition = (0.33 if row['Extraversion'] <= l else 0) \
+                    + (0.33 if row['Openness'] <= l else 0) \
+                    + (0.34 if row['Agreeableness'] >= h else 0)
+    like_safety = (0.5 if row['Openness'] <= l else 0) \
+                + (0.5 if row['Conscientiousness'] >= h else 0)
+    politics_left = 1 if row['Openness'] >= h else 0.5 if row['Openness'] >= 3.5 else 0
+    # politics_left = 1 if row['Openness'] >= h else 0
+    politics_right = (0.33 if row['Honesty-Humility'] <= l else 0) \
+                    + (0.33 if row['Openness'] <= l else 0) \
+                    + (0.34 if row['Conscientiousness'] >= h else 0)
+    proenvironmental_attitudes = (0.5 if row['Honesty-Humility'] >= h else 0) \
+                                + (0.5 if row['Openness'] >= h else 0)
+    prejudice_rwa = (0.5 if row['Conscientiousness'] >= h else 0) \
+                    + (0.5 if row['Openness'] <= l else 0)
+    prejudice_sdo = 1 if row['Agreeableness'] <= 2.5 else 0.5 if row['Agreeableness'] <= l else 0
+    # prejudice_sdo = 1 if row['Agreeableness'] <= l else 0
+    beliefin_unjust_world = (0.167 if row['Honesty-Humility'] <= l else 0) \
+                          + (0.167 if row['Emotionality'] >= h else 0) \
+                          + (0.167 if row['Extraversion'] <= l else 0) \
+                          + (0.167 if row['Agreeableness'] <= l else 0) \
+                          + (0.166 if row['Conscientiousness'] <= l else 0) \
+                          + (0.166 if row['Openness'] <= l else 0)
     compatibility_1 = 1 if row['Honesty-Humility'] >= 3 and row['Openness'] >= 3 else 0
     compatibility_2 = 1 if row['Honesty-Humility'] < 3 and row['Openness'] >= 3 else 0
     compatibility_3 = 1 if row['Honesty-Humility'] >= 3 and row['Openness'] < 3 else 0
     compatibility_4 = 1 if row['Honesty-Humility'] < 3 and row['Openness'] < 3 else 0
-    social_loafing = 1 if row['Conscientiousness'] <= 2.5 else 0.5 if row['Conscientiousness'] <= 3.0 else 0
-    # social_loafing = 1 if row['Conscientiousness'] <= 3 else 0
-    feel_peer_pressure = (0.25 if row['Emotionality'] >= 4 else 0) \
-                        + (0.25 if row['Extraversion'] >= 4 else 0) \
-                        + (0.25 if row['Agreeableness'] >= 4 else 0) \
-                        + (0.25 if row['Conscientiousness'] >= 4 else 0)
+    social_loafing = 1 if row['Conscientiousness'] <= 2.5 else 0.5 if row['Conscientiousness'] <= l else 0
+    # social_loafing = 1 if row['Conscientiousness'] <= l else 0
+    feel_peer_pressure = (0.25 if row['Emotionality'] >= h else 0) \
+                        + (0.25 if row['Extraversion'] >= h else 0) \
+                        + (0.25 if row['Agreeableness'] >= h else 0) \
+                        + (0.25 if row['Conscientiousness'] >= h else 0)
 
     # 学力・仕事
-    high_academic_performance = (0.33 if row['Agreeableness'] >= 4 else 0) \
-                            + (0.33 if row['Openness'] >= 4 else 0) \
-                            + (0.34 if row['Conscientiousness'] >= 4 else 0)
-    high_online_learning = (0.5 if row['Openness'] >= 4 else 0) \
-                        + (0.5 if row['Conscientiousness'] >= 4 else 0)
-    high_income = (0.2 if row['Extraversion'] >= 4 else 0) \
-                + (0.2 if row['Conscientiousness'] >= 4 else 0) \
-                + (0.2 if row['Openness'] >= 4 else 0) \
-                + (0.2 if row['Emotionality'] <= 3 else 0) \
-                + (0.2 if row['Agreeableness'] <= 3 else 0)
-    high_job_performance = (0.5 if row['Conscientiousness'] >= 4 else 0) \
-                        + (0.5 if row['Emotionality'] <= 3 else 0)
-    career_success = (0.33 if row['Extraversion'] >= 4 else 0) \
-                    + (0.33 if row['Conscientiousness'] >= 4 else 0) \
-                    + (0.34 if row['Emotionality'] <= 3 else 0)
-    good_team = (0.5 if row['Conscientiousness'] >= 4 else 0) \
-                + (0.5 if row['Agreeableness'] >= 4 else 0)
-    resignation = (0.33 if row['Extraversion'] >= 4 else 0) \
-                + (0.33 if row['Openness'] >= 4 else 0) \
-                + (0.34 if row['Agreeableness'] <= 3 else 0)
-    tired = (0.33 if row['Extraversion'] <= 3 else 0) \
-            + (0.33 if row['Emotionality'] >= 4 else 0) \
-            + (0.34 if row['Conscientiousness'] <= 3 else 0)
-    burn_out = (0.25 if row['Extraversion'] <= 3 else 0) \
-                + (0.25 if row['Emotionality'] >= 4 else 0) \
-                + (0.25 if row['Conscientiousness'] <= 3 else 0) \
-                + (0.25 if row['Agreeableness'] <= 3 else 0)
-    remote_work = (0.5 if row['Emotionality'] <= 3 else 0) \
-                + (0.5 if row['Conscientiousness'] >= 4 else 0)
-    engagement = (0.25 if row['Extraversion'] >= 4 else 0) \
-                + (0.25 if row['Conscientiousness'] >= 4 else 0) \
-                + (0.25 if row['Openness'] >= 4 else 0) \
-                + (0.25 if row['Emotionality'] <= 3 else 0)
-    organizational_commitment = (0.25 if row['Extraversion'] >= 4 else 0) \
-                            + (0.25 if row['Conscientiousness'] >= 4 else 0) \
-                            + (0.25 if row['Openness'] >= 4 else 0) \
-                            + (0.25 if row['Emotionality'] <= 3 else 0)
-    ocb = (0.25 if row['Extraversion'] >= 4 else 0) \
-        + (0.25 if row['Conscientiousness'] >= 4 else 0) \
-        + (0.25 if row['Openness'] >= 4 else 0) \
-        + (0.25 if row['Honesty-Humility'] >= 4 else 0)
-    ocb_individual = (0.5 if row['Conscientiousness'] >= 4 else 0) \
-                    + (0.5 if row['Agreeableness'] >= 4 else 0)
-    ocb_organization = (0.5 if row['Conscientiousness'] >= 4 else 0) \
-                    + (0.5 if row['Openness'] >= 4 else 0)
-    ocb_change = (0.5 if row['Extraversion'] >= 4 else 0) \
-                + (0.5 if row['Openness'] >= 4 else 0)
-    interpersonal_task = (0.33 if row['Extraversion'] >= 4 else 0) \
-                    + (0.33 if row['Conscientiousness'] >= 4 else 0) \
-                    + (0.34 if row['Openness'] >= 4 else 0)
-    learning_goal_orientation = (0.33 if row['Extraversion'] >= 4 else 0) \
-                            + (0.33 if row['Conscientiousness'] >= 4 else 0) \
-                            + (0.34 if row['Openness'] >= 4 else 0)
-    surface_learning = (0.5 if row['Conscientiousness'] >= 4 else 0) \
-                    + (0.5 if row['Agreeableness'] >= 4 else 0)
-    effective_coaching = (0.25 if row['Extraversion'] >= 4 else 0) \
-                        + (0.25 if row['Conscientiousness'] >= 4 else 0) \
-                        + (0.25 if row['Openness'] >= 4 else 0) \
-                        + (0.25 if row['Emotionality'] <= 3 else 0)
-    job_crafting = (0.25 if row['Extraversion'] >= 4 else 0) \
-                + (0.25 if row['Conscientiousness'] >= 4 else 0) \
-                + (0.25 if row['Openness'] >= 4 else 0) \
-                + (0.25 if row['Agreeableness'] >= 4 else 0)
-    entrepreneur_innovative_mind = (0.25 if row['Extraversion'] >= 4 else 0) \
-                            + (0.25 if row['Conscientiousness'] >= 4 else 0) \
-                            + (0.25 if row['Openness'] >= 4 else 0) \
-                            + (0.25 if row['Emotionality'] <= 3 else 0)
-    supportive_boss = (0.25 if row['Extraversion'] >= 4 else 0) \
-                    + (0.25 if row['Conscientiousness'] >= 4 else 0) \
-                    + (0.25 if row['Openness'] >= 4 else 0) \
-                    + (0.25 if row['Agreeableness'] >= 4 else 0)
-    leadership_transformational = (0.167 if row['Extraversion'] >= 4 else 0) \
-                            + (0.167 if row['Conscientiousness'] >= 4 else 0) \
-                            + (0.167 if row['Openness'] >= 4 else 0) \
-                            + (0.167 if row['Agreeableness'] >= 4 else 0) \
-                            + (0.166 if row['Honesty-Humility'] >= 4 else 0) \
-                            + (0.166 if row['Emotionality'] <= 3 else 0)
-    leadership_laissez_faire = (0.33 if row['Extraversion'] <= 3 else 0) \
-                            + (0.33 if row['Conscientiousness'] <= 3 else 0) \
+    high_academic_performance = (0.33 if row['Agreeableness'] >= h else 0) \
+                            + (0.33 if row['Openness'] >= h else 0) \
+                            + (0.34 if row['Conscientiousness'] >= h else 0)
+    high_online_learning = (0.5 if row['Openness'] >= h else 0) \
+                        + (0.5 if row['Conscientiousness'] >= h else 0)
+    high_income = (0.2 if row['Extraversion'] >= h else 0) \
+                + (0.2 if row['Conscientiousness'] >= h else 0) \
+                + (0.2 if row['Openness'] >= h else 0) \
+                + (0.2 if row['Emotionality'] <= l else 0) \
+                + (0.2 if row['Agreeableness'] <= l else 0)
+    high_job_performance = (0.5 if row['Conscientiousness'] >= h else 0) \
+                        + (0.5 if row['Emotionality'] <= l else 0)
+    career_success = (0.33 if row['Extraversion'] >= h else 0) \
+                    + (0.33 if row['Conscientiousness'] >= h else 0) \
+                    + (0.34 if row['Emotionality'] <= l else 0)
+    good_team = (0.5 if row['Conscientiousness'] >= h else 0) \
+                + (0.5 if row['Agreeableness'] >= h else 0)
+    resignation = (0.33 if row['Extraversion'] >= h else 0) \
+                + (0.33 if row['Openness'] >= h else 0) \
+                + (0.34 if row['Agreeableness'] <= l else 0)
+    tired = (0.33 if row['Extraversion'] <= l else 0) \
+            + (0.33 if row['Emotionality'] >= h else 0) \
+            + (0.34 if row['Conscientiousness'] <= l else 0)
+    burn_out = (0.25 if row['Extraversion'] <= l else 0) \
+                + (0.25 if row['Emotionality'] >= h else 0) \
+                + (0.25 if row['Conscientiousness'] <= l else 0) \
+                + (0.25 if row['Agreeableness'] <= l else 0)
+    remote_work = (0.5 if row['Emotionality'] <= l else 0) \
+                + (0.5 if row['Conscientiousness'] >= h else 0)
+    engagement = (0.25 if row['Extraversion'] >= h else 0) \
+                + (0.25 if row['Conscientiousness'] >= h else 0) \
+                + (0.25 if row['Openness'] >= h else 0) \
+                + (0.25 if row['Emotionality'] <= l else 0)
+    organizational_commitment = (0.25 if row['Extraversion'] >= h else 0) \
+                            + (0.25 if row['Conscientiousness'] >= h else 0) \
+                            + (0.25 if row['Openness'] >= h else 0) \
+                            + (0.25 if row['Emotionality'] <= l else 0)
+    ocb = (0.25 if row['Extraversion'] >= h else 0) \
+        + (0.25 if row['Conscientiousness'] >= h else 0) \
+        + (0.25 if row['Openness'] >= h else 0) \
+        + (0.25 if row['Honesty-Humility'] >= h else 0)
+    ocb_individual = (0.5 if row['Conscientiousness'] >= h else 0) \
+                    + (0.5 if row['Agreeableness'] >= h else 0)
+    ocb_organization = (0.5 if row['Conscientiousness'] >= h else 0) \
+                    + (0.5 if row['Openness'] >= h else 0)
+    ocb_change = (0.5 if row['Extraversion'] >= h else 0) \
+                + (0.5 if row['Openness'] >= h else 0)
+    interpersonal_task = (0.33 if row['Extraversion'] >= h else 0) \
+                    + (0.33 if row['Conscientiousness'] >= h else 0) \
+                    + (0.34 if row['Openness'] >= h else 0)
+    learning_goal_orientation = (0.33 if row['Extraversion'] >= h else 0) \
+                            + (0.33 if row['Conscientiousness'] >= h else 0) \
+                            + (0.34 if row['Openness'] >= h else 0)
+    surface_learning = (0.5 if row['Conscientiousness'] >= h else 0) \
+                    + (0.5 if row['Agreeableness'] >= h else 0)
+    effective_coaching = (0.25 if row['Extraversion'] >= h else 0) \
+                        + (0.25 if row['Conscientiousness'] >= h else 0) \
+                        + (0.25 if row['Openness'] >= h else 0) \
+                        + (0.25 if row['Emotionality'] <= l else 0)
+    job_crafting = (0.25 if row['Extraversion'] >= h else 0) \
+                + (0.25 if row['Conscientiousness'] >= h else 0) \
+                + (0.25 if row['Openness'] >= h else 0) \
+                + (0.25 if row['Agreeableness'] >= h else 0)
+    entrepreneur_innovative_mind = (0.25 if row['Extraversion'] >= h else 0) \
+                            + (0.25 if row['Conscientiousness'] >= h else 0) \
+                            + (0.25 if row['Openness'] >= h else 0) \
+                            + (0.25 if row['Emotionality'] <= l else 0)
+    supportive_boss = (0.25 if row['Extraversion'] >= h else 0) \
+                    + (0.25 if row['Conscientiousness'] >= h else 0) \
+                    + (0.25 if row['Openness'] >= h else 0) \
+                    + (0.25 if row['Agreeableness'] >= h else 0)
+    leadership_transformational = (0.167 if row['Extraversion'] >= h else 0) \
+                            + (0.167 if row['Conscientiousness'] >= h else 0) \
+                            + (0.167 if row['Openness'] >= h else 0) \
+                            + (0.167 if row['Agreeableness'] >= h else 0) \
+                            + (0.166 if row['Honesty-Humility'] >= h else 0) \
+                            + (0.166 if row['Emotionality'] <= l else 0)
+    leadership_laissez_faire = (0.33 if row['Extraversion'] <= l else 0) \
+                            + (0.33 if row['Conscientiousness'] <= l else 0) \
                             + (0.34 if row['Agreeableness'] >= 3 else 0)
-    leadership_destructive = (0.25 if row['Honesty-Humility'] <= 3 else 0) \
-                            + (0.25 if row['Agreeableness'] <= 3 else 0) \
-                            + (0.25 if row['Conscientiousness'] <= 3 else 0) \
-                            + (0.25 if row['Emotionality'] >= 4 else 0)
-    followership_transformational = (0.33 if row['Honesty-Humility'] <= 3 else 0) \
-                                + (0.33 if row['Extraversion'] >= 4 else 0) \
-                                + (0.34 if row['Openness'] >= 4 else 0)
-    followership_relational = 1 if row['Emotionality'] >= 4 else 0.5 if row['Emotionality'] >= 3.5 else 0
-    # followership_relational = 1 if row['Emotionality'] >= 4 else 0
-    followership_realistic = (0.5 if row['Emotionality'] >= 4 else 0) \
-                            + (0.5 if row['Openness'] <= 3 else 0)
+    leadership_destructive = (0.25 if row['Honesty-Humility'] <= l else 0) \
+                            + (0.25 if row['Agreeableness'] <= l else 0) \
+                            + (0.25 if row['Conscientiousness'] <= l else 0) \
+                            + (0.25 if row['Emotionality'] >= h else 0)
+    followership_transformational = (0.33 if row['Honesty-Humility'] <= l else 0) \
+                                + (0.33 if row['Extraversion'] >= h else 0) \
+                                + (0.34 if row['Openness'] >= h else 0)
+    followership_relational = 1 if row['Emotionality'] >= h else 0.5 if row['Emotionality'] >= 3.5 else 0
+    # followership_relational = 1 if row['Emotionality'] >= h else 0
+    followership_realistic = (0.5 if row['Emotionality'] >= h else 0) \
+                            + (0.5 if row['Openness'] <= l else 0)
 
     # それぞれの指標をlow, middle, highに分類する
     def classify(value):
-        if value < l:
+        if value < res_l:
             return 'low'
-        elif value >= h:
+        elif value >= res_h:
             return 'high'
         else:
             return 'middle'
