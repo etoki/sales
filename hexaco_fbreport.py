@@ -21,13 +21,8 @@ client = OpenAI(api_key="")
 
 # ------------------ コンフィグ ------------------
 # CSV_PATH = "csv/20250417_nttdata_ddd.csv"
-<<<<<<< HEAD
 CSV_PATH = "csv/20251020_nttdatauniv_test.csv"
 # CSV_PATH = "csv/20251020_nttdatauniv.csv"
-=======
-# CSV_PATH = "csv/20251020_nttdatauniv_test.csv"
-CSV_PATH = "csv/20251020_nttdatauniv.csv"
->>>>>>> b8c40cc1d9eacd09fb80f9a88e1aa6442546717c
 TEMPLATE_PERSON = "tmp/HEXACOfbレポート_本人用_tmp.docx"
 TEMPLATE_OFFICE = "tmp/HEXACOfbレポート_事務局用_tmp.docx"
 OUT_DIR = "out/"
@@ -112,7 +107,6 @@ def collect_level_flags(row, exclude_cols=None, include_middle: bool = False):
                     pass
     return strengths, weaknesses
 
-<<<<<<< HEAD
 PRIORITY_HEADS_STRENGTH = ["知能指数（IQ）","ポジティブ感情","モチベーション","主体的行動","人間関係","レジリエンス","リスクに対して冷静"
                            "いい上司になりやすい可能性","仕事のパフォーマンスが高くなりやすい可能性",
                            "ワークエンゲージメントが高くなりやすい可能性","職務の範囲外の仕事を積極的に行う可能性",
@@ -121,15 +115,6 @@ PRIORITY_HEADS_STRENGTH = ["知能指数（IQ）","ポジティブ感情","モ�
 PRIORITY_HEADS_WEAKNESS = ["情動知能（EQ）","バイアス傾向","疲れやすさ","責任転嫁傾向",
                            "社会的手抜き","同調圧力への敏感さ","バーンアウト傾向",
                            "ストレス対処の傾向：問題をとにかく避ける","放任型リーダーシップである可能性"]
-=======
-PRIORITY_HEADS_STRENGTH = ["正直・謙虚さ（倫理観）","協調性（利他性・共感性）","誠実性（計画性）","開放性（好奇心）",
-                           "高いIQの可能性","いい上司になりやすい可能性","仕事のパフォーマンスが高くなりやすい可能性",
-                           "主体的に行動しやすい可能性","ワークエンゲージメントが高くなりやすい可能性","職務の範囲外の仕事を積極的に行う可能性"]
-
-PRIORITY_HEADS_WEAKNESS = ["情動性（不安傾向）","協調性（利他性・共感性）","誠実性（計画性）",
-                           "バイアスを持ちやすい可能性","疲れやすい可能性","ネガティブなことを環境のせいにする可能性",
-                           "ストレス対処の傾向：問題をとにかく避ける","高いEQの可能性","ポジティブ感情が強い可能性"]
->>>>>>> b8c40cc1d9eacd09fb80f9a88e1aa6442546717c
 
 def sort_by_priority_strength(items):
     # 「カラム:値」→「カラム」部分だけで優先度リストを引く
@@ -279,14 +264,9 @@ PERSON_COMMENT_LIMIT = 200
 OFFICE_COMMENT_LIMIT  = 600
 
 MAX_OFFICE_STRENGTHS = 10
-<<<<<<< HEAD
 MAX_OFFICE_WEAKNESSES = 10
 
 
-=======
-MAX_OFFICE_WEAKNESSES = 5
-
->>>>>>> b8c40cc1d9eacd09fb80f9a88e1aa6442546717c
 def build_person_prompt(name: str, scores: dict, levels: dict) -> str:
     """
     name: 受検者名（例: "山田太郎"）
@@ -314,11 +294,7 @@ def build_person_prompt(name: str, scores: dict, levels: dict) -> str:
   - middle: 新しい考えに前向きだが現実的に吟味／必要に応じて取り入れる（両面同時称賛は不可）
   - low: 実務志向・手順安定・既存資源の磨き込み・標準化（「好奇心が非常に強い」等は不可）
 
-<<<<<<< HEAD
 - C 勤勉性:
-=======
-- C 誠実性:
->>>>>>> b8c40cc1d9eacd09fb80f9a88e1aa6442546717c
   - high: 計画性・継続力・締切厳守・準備・自己管理
   - middle: 計画と柔軟さを状況で切替（矛盾する二律背反の同時称賛は不可）
   - low: 臨機応変・試行錯誤・スピード重視（緻密な計画で着実は不可）
@@ -356,47 +332,14 @@ def build_person_prompt(name: str, scores: dict, levels: dict) -> str:
 
 
 def build_office_prompt(name: str, levels_6: dict, strengths: list, weaknesses: list, dark_levels: dict = None) -> str:
-<<<<<<< HEAD
     # --- ダーク傾向（ある場合のみ軽く注意喚起） ---
     alerts = []
     low_list = []
-=======
-    lines = []
-    lines.append("あなたは産業・組織心理学の専門家です。全角600文字以内で日本語の自然な文を書いてください。")
-    lines.append(f"対象者名: {name}")
-    lines.append("HEXACO（事務局用6因子）の水準: " + ", ".join([
-        f"H={levels_6.get('H','')}",
-        f"E={levels_6.get('E','')}",
-        f"X={levels_6.get('X','')}",
-        f"A={levels_6.get('A','')}",
-        f"C={levels_6.get('C','')}",
-        f"O={levels_6.get('O','')}",
-    ]))
-
-    if strengths:
-        lines.append("強み（high）: " + "、".join(strengths[:MAX_OFFICE_STRENGTHS]))
-    if weaknesses:
-        lines.append("改善余地（low）: " + "、".join(weaknesses[:MAX_OFFICE_WEAKNESSES]))
-
-    if strengths:
-        lines.append("厳守: 肯定的に断定してよいのは high の項目のみ。")
-        lines.append("厳守: high に含まれない項目は、強み/得意/高い/～しやすい等と断定しない。")
-    else:
-        lines.append("厳守: 肯定的な断定表現は禁止。助言は条件付きで簡潔に。")
-
-    lines.append("厳守: high/middle/low は事実。語尾や表現を変えても値は変えない。")
-    lines.append("厳守: 例『高いIQの可能性: low』は『…が低い』と明記。逆転表現禁止。")
-    lines.append("厳守: low は『〜が低い』または『今後伸ばせる余地がある』と明示し、"
-                "高い/得意/～しやすい等へ言い換えない。")
-
-    alerts = []
->>>>>>> b8c40cc1d9eacd09fb80f9a88e1aa6442546717c
     if dark_levels:
         for k, v in dark_levels.items():
             sv = str(v).strip().lower()
             if sv in ("middle", "high"):
                 alerts.append(f"{k}={v}")
-<<<<<<< HEAD
             elif sv == "low":
                 low_list.append(k)
 
@@ -457,17 +400,6 @@ def build_office_prompt(name: str, levels_6: dict, strengths: list, weaknesses: 
 {alerts_line}
     """
     return prompt
-=======
-
-    if alerts:
-        lines.append("注意: 以下のダーク傾向でmiddle/highが見られます。")
-        lines.append("ダーク傾向: " + "、".join(alerts))
-        lines.append("評価文では、烙印的な表現を避け、業務上のリスク（利己的判断、衝動性、規範軽視など）の具体例と、建設的対処（役割設計、フィードバック頻度、意思決定プロセスの透明化等）を簡潔に示してください。")
-
-    lines.append("要件: 人事・教育担当者向けに配置・育成上の示唆を含め、客観的かつ簡潔に、1段落のみ。")
-
-    return "\n".join(lines)
->>>>>>> b8c40cc1d9eacd09fb80f9a88e1aa6442546717c
 
 def generate_comment_via_gpt(prompt: str) -> str:
     try:
@@ -699,11 +631,7 @@ def main():
         office_pdf  = os.path.join(OUT_OFFICE_PDF,  f"{safe_name}_事務局用.pdf")
 
         # ---- 出力 ----
-<<<<<<< HEAD
         # fill_person_docx(row, buf_p, person_docx, person_pdf)
-=======
-        fill_person_docx(row, buf_p, person_docx, person_pdf)
->>>>>>> b8c40cc1d9eacd09fb80f9a88e1aa6442546717c
         fill_office_docx(row, buf_o, office_docx, office_pdf)
 
         print(f"Generated: {person_docx}")
