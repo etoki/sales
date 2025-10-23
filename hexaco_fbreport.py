@@ -26,16 +26,17 @@ except Exception as e:
 openai_client = OpenAI()
 
 # -------- OpenAI Model & Prompt Files (added) --------
-MODEL = "gpt-5-mini"
+# MODEL = "gpt-5-nano"
+MODEL = "gpt-4.1"
 # MODEL = "gpt-4o-mini"
 PROMPT_PERSONAL_FILE = "pmt/prompt_personal.txt"
 PROMPT_OFFICE_FILE = "pmt/prompt_office.txt"
 
 # ------------------ コンフィグ ------------------
 # CSV_PATH = "csv/20250417_nttdata_ddd.csv"
-CSV_PATH = "csv/20251020_nttdatauniv_test1.csv"
+# CSV_PATH = "csv/20251020_nttdatauniv_test1.csv"
 # CSV_PATH = "csv/20251020_nttdatauniv_test2.csv"
-# CSV_PATH = "csv/20251020_nttdatauniv.csv"
+CSV_PATH = "csv/20251020_nttdatauniv.csv"
 TEMPLATE_PERSON = "tmp/HEXACOfbレポート_本人用_tmp.docx"
 TEMPLATE_OFFICE = "tmp/HEXACOfbレポート_事務局用_tmp.docx"
 OUT_DIR = "out/"
@@ -274,7 +275,7 @@ def apply_font(doc: Document, font_name: str):
 # ------------------ コメント生成（APIは空） ------------------
 
 PERSON_COMMENT_LIMIT = 200
-OFFICE_COMMENT_LIMIT  = 600
+OFFICE_COMMENT_LIMIT  = 450
 
 MAX_OFFICE_STRENGTHS = 10
 MAX_OFFICE_WEAKNESSES = 10
@@ -305,8 +306,6 @@ def build_person_prompt(name: str, scores: dict, levels: dict) -> str:
                      .replace("{name}", name)\
                      .replace("{scores}", scores_json)\
                      .replace("{levels}", levels_json)
-    print(prompt)
-
     return prompt.strip()
 
 
@@ -343,9 +342,6 @@ def build_office_prompt(name: str, levels_6: dict, strengths: list, weaknesses: 
     template = prompt_path.read_text(encoding="utf-8")
     payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     prompt = template.replace("{payload}", payload_json).replace("{alerts_line}", alerts_line)
-
-    print(prompt)
-
     return prompt
 
 def generate_comment_via_gpt(prompt: str) -> str:
@@ -427,7 +423,6 @@ def fill_person_docx(row: pd.Series, radar_buf, out_docx_path: str, out_pdf_path
 
     comment = generate_comment_via_gpt(prompt)
     comment = trim_to_fullwidth_chars(comment, PERSON_COMMENT_LIMIT)
-    print(comment)
     replace_text_placeholders(doc, {"[comment_about_5_factors]": comment, "[COMMENT]": comment})
 
     # レーダー画像
@@ -502,7 +497,6 @@ def fill_office_docx(row: pd.Series, radar_buf, out_docx_path: str, out_pdf_path
     prompt = build_office_prompt(name, levels, strengths, weaknesses, dark_levels=dark_levels)
     comment = generate_comment_via_gpt(prompt)
     comment = trim_to_fullwidth_chars(comment, OFFICE_COMMENT_LIMIT)
-    print(comment)
     replace_text_placeholders(doc, {"[comment_about_6_factors_and_darktrait]": comment, "[COMMENT]": comment})
 
     # レーダー画像（事務局用は main 内で平均オーバーレイ済みのバッファを受け取る）
@@ -587,7 +581,7 @@ def main():
         office_pdf  = os.path.join(OUT_OFFICE_PDF,  f"{safe_name}_事務局用.pdf")
 
         # ---- 出力 ----
-        # fill_person_docx(row, buf_p, person_docx, person_pdf)
+        fill_person_docx(row, buf_p, person_docx, person_pdf)
         fill_office_docx(row, buf_o, office_docx, office_pdf)
 
         print(f"Generated: {person_docx}")
