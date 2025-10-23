@@ -11,7 +11,7 @@ except Exception as e:
     raise
 
 MODEL = "gpt-5-mini"
-PROMPT_FILE = "prompt.txt"
+PROMPT_FILE = "prompt_test.txt"
 
 def main() -> int:
     if not os.getenv("OPENAI_API_KEY"):

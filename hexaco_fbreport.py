@@ -6,7 +6,6 @@ from datetime import datetime, timezone, timedelta
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import unicodedata
 from typing import Dict, List, Tuple, Iterable, Optional
 import sys
 from pathlib import Path
@@ -18,11 +17,17 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 from docx2pdf import convert
 
-from openai import OpenAI
+try:
+    from openai import OpenAI
+except Exception as e:
+    print("`openai` パッケージの読み込みに失敗しました。`pip install openai` を実行してください。", file=sys.stderr)
+    raise
+
 openai_client = OpenAI()
 
 # -------- OpenAI Model & Prompt Files (added) --------
-MODEL = "gpt-4o-mini"
+MODEL = "gpt-5-mini"
+# MODEL = "gpt-4o-mini"
 PROMPT_PERSONAL_FILE = "pmt/prompt_personal.txt"
 PROMPT_OFFICE_FILE = "pmt/prompt_office.txt"
 
@@ -269,7 +274,7 @@ def apply_font(doc: Document, font_name: str):
 # ------------------ コメント生成（APIは空） ------------------
 
 PERSON_COMMENT_LIMIT = 200
-OFFICE_COMMENT_LIMIT  = 500
+OFFICE_COMMENT_LIMIT  = 600
 
 MAX_OFFICE_STRENGTHS = 10
 MAX_OFFICE_WEAKNESSES = 10
@@ -350,13 +355,15 @@ def generate_comment_via_gpt(prompt: str) -> str:
             input=[
                 {"role": "system", "content": "あなたは簡潔かつ丁寧な日本語の文章アシスタントです。"},
                 {"role": "user", "content": prompt},
-            ],
-            # temperature=0.1,
-            # max_output_tokens=512,
-            max_output_tokens=2048,
+            ]
         )
         return resp.output_text.strip()
-    except Exception:
+    except KeyboardInterrupt:
+        print("\nユーザーにより中断されました。", file=sys.stderr)
+        return 130
+    except Exception as e:
+        # 予期せぬエラー
+        print(f"[ERROR] {type(e).__name__}: {e}", file=sys.stderr)
         return "観察された特性を踏まえ、強みを活かしつつ小さな行動から改善を進めましょう。"
 
 
@@ -580,8 +587,8 @@ def main():
         office_pdf  = os.path.join(OUT_OFFICE_PDF,  f"{safe_name}_事務局用.pdf")
 
         # ---- 出力 ----
-        fill_person_docx(row, buf_p, person_docx, person_pdf)
-        # fill_office_docx(row, buf_o, office_docx, office_pdf)
+        # fill_person_docx(row, buf_p, person_docx, person_pdf)
+        fill_office_docx(row, buf_o, office_docx, office_pdf)
 
         print(f"Generated: {person_docx}")
         print(f"Generated: {person_pdf}")
