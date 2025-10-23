@@ -10,6 +10,7 @@ from typing import Dict, List, Tuple, Iterable, Optional
 import sys
 from pathlib import Path
 import json
+from collections import OrderedDict
 
 from docx import Document
 from docx.shared import Inches
@@ -27,16 +28,17 @@ openai_client = OpenAI()
 
 # -------- OpenAI Model & Prompt Files (added) --------
 # MODEL = "gpt-5-nano"
-MODEL = "gpt-4.1"
+# MODEL = "gpt-4.1"
 # MODEL = "gpt-4o-mini"
+MODEL = "o4-mini"
 PROMPT_PERSONAL_FILE = "pmt/prompt_personal.txt"
 PROMPT_OFFICE_FILE = "pmt/prompt_office.txt"
 
 # ------------------ コンフィグ ------------------
 # CSV_PATH = "csv/20250417_nttdata_ddd.csv"
-# CSV_PATH = "csv/20251020_nttdatauniv_test1.csv"
+CSV_PATH = "csv/20251020_nttdatauniv_test1.csv"
 # CSV_PATH = "csv/20251020_nttdatauniv_test2.csv"
-CSV_PATH = "csv/20251020_nttdatauniv.csv"
+# CSV_PATH = "csv/20251020_nttdatauniv.csv"
 TEMPLATE_PERSON = "tmp/HEXACOfbレポート_本人用_tmp.docx"
 TEMPLATE_OFFICE = "tmp/HEXACOfbレポート_事務局用_tmp.docx"
 OUT_DIR = "out/"
@@ -54,6 +56,37 @@ RADAR_HEIGHT_PX = 300
 FONT_NAME = "MS Gothic"
 
 DARK_TRAIT_COLS = ["ダーク傾向", "ナルシシズム", "サイコパシー", "マキャベリズム"]
+
+PRIORITY_HEADS_STRENGTH = [
+    "知能指数（IQ）","ポジティブ感情","モチベーション","主体的行動","人間関係","レジリエンス","リスクに対して冷静",
+    "いい上司になりやすい可能性","仕事のパフォーマンスが高くなりやすい可能性",
+    "ワークエンゲージメントが高くなりやすい可能性","職務の範囲外の仕事を積極的に行う可能性",
+    "ストレス対処の傾向：問題の解決を求める"
+]
+
+PRIORITY_HEADS_WEAKNESS = [
+    "情動知能（EQ）","バイアス傾向","疲れやすさ","責任転嫁傾向",
+    "社会的手抜き","同調圧力への敏感さ","バーンアウト傾向",
+    "ストレス対処の傾向：問題をとにかく避ける","放任型リーダーシップである可能性"
+]
+
+FEATURE_POLARITY = {
+    "疲れやすさ": -1,
+    "責任転嫁傾向": -1,
+    "バイアス傾向": -1,
+    "同調圧力への敏感さ": -1,
+    "バーンアウト傾向": -1,
+    "社会的手抜き": -1
+}
+
+FEATURE_DISPLAY = {
+    "疲れやすさ": "疲れにくさ（スタミナ）",
+    "責任転嫁傾向": "自責と改善志向",
+    "バイアス傾向": "バイアスの少なさ",
+    "同調圧力への敏感さ": "自律的判断",
+    "バーンアウト傾向": "燃え尽きにくさ",
+    "社会的手抜き": "主体的な貢献"
+}
 
 # ------------------ ユーティリティ ------------------
 
@@ -95,57 +128,68 @@ def trim_to_fullwidth_chars(text: str, limit: int) -> str:
         s = s[:last_marume+1]
     return s
 
-def collect_level_flags(row, exclude_cols=None, include_middle: bool = False):
+def collect_flags_dict(row, exclude_cols=None,
+                       polarity_map=None, display_map=None,
+                       include_middle: bool = False):
     """
-    行データから high/low を抽出し、「カラム:値」形式で返す。
-    例） strengths = ["主体的に行動しやすい可能性:high", ...]
-        weaknesses = ["疲れやすい可能性:low", ...]
-    include_middle=True にすると middle も含められる（デフォルトは除外）。
+    戻り値: (strengths_dict, weaknesses_dict)
+      例: ({"疲れにくさ":"low", ...}, {"主体的な貢献":"high", ...})
     """
     if exclude_cols is None:
         exclude_cols = []
+    if polarity_map is None:
+        polarity_map = {}
+    if display_map is None:
+        display_map = {}
 
-    strengths, weaknesses = [], []
+    strengths, weaknesses = OrderedDict(), OrderedDict()
+
     for col, val in row.items():
         if col in exclude_cols:
             continue
-        if isinstance(val, str):
-            sv = val.strip().lower()
-            if sv in ("high", "low", "middle"):
-                if sv == "high":
-                    strengths.append(f"{col}:{sv}")
-                elif sv == "low":
-                    weaknesses.append(f"{col}:{sv}")
-                elif include_middle:
-                    # middle もプロンプトに渡したい場合はここで扱う（必要なければ無視される）
-                    pass
+        if not isinstance(val, str):
+            continue
+        sv = val.strip().lower()
+        if sv not in ("high", "low", "middle"):
+            continue
+        if sv == "middle" and not include_middle:
+            continue
+
+        disp = display_map.get(col, col)
+        direction = polarity_map.get(col, +1)  # +1:高い方が良い / -1:低い方が良い
+
+        # 良し悪しの判定（表示レベルは反転しない）
+        if sv == "high":
+            is_good = (direction == +1)
+        elif sv == "low":
+            is_good = (direction == -1)
+        else:  # middle
+            is_good = None
+
+        if is_good is True:
+            strengths[disp] = sv
+        elif is_good is False:
+            weaknesses[disp] = sv
+        # middle は通常スキップ
+
     return strengths, weaknesses
 
-PRIORITY_HEADS_STRENGTH = ["知能指数（IQ）","ポジティブ感情","モチベーション","主体的行動","人間関係","レジリエンス","リスクに対して冷静"
-                           "いい上司になりやすい可能性","仕事のパフォーマンスが高くなりやすい可能性",
-                           "ワークエンゲージメントが高くなりやすい可能性","職務の範囲外の仕事を積極的に行う可能性",
-                           "ストレス対処の傾向：問題の解決を求める"]
+DISPLAY_TO_RAW = {v: k for k, v in FEATURE_DISPLAY.items()}
 
-PRIORITY_HEADS_WEAKNESS = ["情動知能（EQ）","バイアス傾向","疲れやすさ","責任転嫁傾向",
-                           "社会的手抜き","同調圧力への敏感さ","バーンアウト傾向",
-                           "ストレス対処の傾向：問題をとにかく避ける","放任型リーダーシップである可能性"]
+def reorder_by_priority(flags_dict: OrderedDict, priority_heads: list,
+                        display_to_raw: dict | None = None) -> OrderedDict:
+    """
+    表示名→元名の逆引き（あれば）を使って優先度表（元名）と突合し、並び替える。
+    """
+    display_to_raw = display_to_raw or {}
+    prio = {name: i for i, name in enumerate(priority_heads)}
 
-def sort_by_priority_strength(items):
-    # 「カラム:値」→「カラム」部分だけで優先度リストを引く
-    prio = {name: i for i, name in enumerate(PRIORITY_HEADS_STRENGTH)}
-    def _key(x: str):
-        head = x.split(":", 1)[0] if isinstance(x, str) else x
-        return prio.get(head, 10_000)
-    return sorted(items, key=_key)
+    def key_fn(display_name):
+        raw = display_to_raw.get(display_name, display_name)
+        return prio.get(raw, 10_000)
 
+    return OrderedDict(sorted(flags_dict.items(), key=lambda kv: key_fn(kv[0])))
 
-def sort_by_priority_weakness(items):
-    # 「カラム:値」→「カラム」部分だけで優先度リストを引く
-    prio = {name: i for i, name in enumerate(PRIORITY_HEADS_WEAKNESS)}
-    def _key(x: str):
-        head = x.split(":", 1)[0] if isinstance(x, str) else x
-        return prio.get(head, 10_000)
-    return sorted(items, key=_key)
 
 # ------------------ レーダー ------------------
 
@@ -309,7 +353,7 @@ def build_person_prompt(name: str, scores: dict, levels: dict) -> str:
     return prompt.strip()
 
 
-def build_office_prompt(name: str, levels_6: dict, strengths: list, weaknesses: list, dark_levels: dict = None) -> str:
+def build_office_prompt(name: str, levels_6: dict, strengths: dict, weaknesses: dict, dark_levels: dict = None) -> str:
     # --- ダーク傾向（ある場合のみ軽く注意喚起） ---
     alerts = []
     low_list = []
@@ -338,7 +382,6 @@ def build_office_prompt(name: str, levels_6: dict, strengths: list, weaknesses: 
         print(f"事務局用の固定プロンプトファイルが見つかりません: {prompt_path}", file=sys.stderr)
         return "テンプレートが見つかりません"
 
-    prompt = prompt_path.read_text(encoding="utf-8")
     template = prompt_path.read_text(encoding="utf-8")
     payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     prompt = template.replace("{payload}", payload_json).replace("{alerts_line}", alerts_line)
@@ -459,10 +502,15 @@ def fill_office_docx(row: pd.Series, radar_buf, out_docx_path: str, out_pdf_path
         "O": label_from_score(row.get("開放性（好奇心）")),
     }
 
-    strengths, weaknesses = collect_level_flags(row, exclude_cols=DARK_TRAIT_COLS)
+    strengths_dict, weaknesses_dict = collect_flags_dict(
+        row,
+        exclude_cols=DARK_TRAIT_COLS,
+        polarity_map=FEATURE_POLARITY,
+        display_map=FEATURE_DISPLAY
+    )
 
-    strengths = sort_by_priority_strength(strengths)
-    weaknesses = sort_by_priority_weakness(weaknesses)
+    strengths_dict = reorder_by_priority(strengths_dict, PRIORITY_HEADS_STRENGTH, DISPLAY_TO_RAW)
+    weaknesses_dict = reorder_by_priority(weaknesses_dict, PRIORITY_HEADS_WEAKNESS, DISPLAY_TO_RAW)
 
     text_map = {
         "[Name]": name,
@@ -494,7 +542,7 @@ def fill_office_docx(row: pd.Series, radar_buf, out_docx_path: str, out_pdf_path
             dark_levels[col] = row[col]
 
     # コメント
-    prompt = build_office_prompt(name, levels, strengths, weaknesses, dark_levels=dark_levels)
+    prompt = build_office_prompt(name, levels, strengths_dict, weaknesses_dict, dark_levels=dark_levels)
     comment = generate_comment_via_gpt(prompt)
     comment = trim_to_fullwidth_chars(comment, OFFICE_COMMENT_LIMIT)
     replace_text_placeholders(doc, {"[comment_about_6_factors_and_darktrait]": comment, "[COMMENT]": comment})
