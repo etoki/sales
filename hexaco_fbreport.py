@@ -8,6 +8,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import unicodedata
 from typing import Dict, List, Tuple, Iterable, Optional
+import sys
+from pathlib import Path
+import json
 
 from docx import Document
 from docx.shared import Inches
@@ -16,12 +19,17 @@ from docx.oxml.ns import qn
 from docx2pdf import convert
 
 from openai import OpenAI
-client = OpenAI(api_key="")
+openai_client = OpenAI()
 
+# -------- OpenAI Model & Prompt Files (added) --------
+MODEL = "gpt-4o-mini"
+PROMPT_PERSONAL_FILE = "pmt/prompt_personal.txt"
+PROMPT_OFFICE_FILE = "pmt/prompt_office.txt"
 
 # ------------------ コンフィグ ------------------
 # CSV_PATH = "csv/20250417_nttdata_ddd.csv"
-CSV_PATH = "csv/20251020_nttdatauniv_test.csv"
+CSV_PATH = "csv/20251020_nttdatauniv_test1.csv"
+# CSV_PATH = "csv/20251020_nttdatauniv_test2.csv"
 # CSV_PATH = "csv/20251020_nttdatauniv.csv"
 TEMPLATE_PERSON = "tmp/HEXACOfbレポート_本人用_tmp.docx"
 TEMPLATE_OFFICE = "tmp/HEXACOfbレポート_事務局用_tmp.docx"
@@ -261,7 +269,7 @@ def apply_font(doc: Document, font_name: str):
 # ------------------ コメント生成（APIは空） ------------------
 
 PERSON_COMMENT_LIMIT = 200
-OFFICE_COMMENT_LIMIT  = 600
+OFFICE_COMMENT_LIMIT  = 500
 
 MAX_OFFICE_STRENGTHS = 10
 MAX_OFFICE_WEAKNESSES = 10
@@ -273,61 +281,27 @@ def build_person_prompt(name: str, scores: dict, levels: dict) -> str:
     scores: {"O": 4.3, "C": 3.5, "E": 2.6, "A": 3.7, "N": 3.1}
     levels: {"O": "high"|"middle"|"low", ... for O,C,E,A,N}
     """
-    # ここでNG語彙(禁止ワード)は「指示として」渡すだけ。生成後の置換等はしない。
-    prompt = f"""
-あなたは日本語の文章作成アシスタントです。以下の入力(JSON)に基づき、
-受検者本人向けに Big Five（O, C, E, A, N）の特徴コメントを作成してください。
 
-# 目的
-- 本人が前向きに理解・活用できる1段落（150〜220字程度、丁寧語）。
-- 各特性はその水準（high/middle/low）に対応する面のみを記述し、反対側の特性内容は一切書かない。
+    prompt_path = Path(__file__).resolve().parent / PROMPT_PERSONAL_FILE
+    if not prompt_path.exists():
+        print(f"本人用の固定プロンプトファイルが見つかりません: {prompt_path}", file=sys.stderr)
+        return "テンプレートが見つかりません"
 
-# 出力要件
-- 日本語、丁寧語。1段落のみ。数値や記号は書かない（スコアの具体数字は書かない）。
-- 両面併記は禁止（例：「〜一方で、〜も」は不可）。「バランスが取れている」等の曖昧評価は禁止。
-- 最後に1つだけ実践的な行動示唆を入れる（例：「〜を日々メモすると良いでしょう。」）。
+    template = prompt_path.read_text(encoding="utf-8")
 
-# 特性別ガイド（本人用）
-- O 開放性:
-  - high: 新規性・探究心・幅広い関心・学習意欲・発想の柔軟さ
-    - NG語彙: 「既存手順の最適化」「決まった型を守るのが得意」「定型化」「標準化」「保守的」
-  - middle: 新しい考えに前向きだが現実的に吟味／必要に応じて取り入れる（両面同時称賛は不可）
-  - low: 実務志向・手順安定・既存資源の磨き込み・標準化（「好奇心が非常に強い」等は不可）
+    # JSON文字列（日本語保持・コンパクト化）
+    payload = {"name": name, "scores": scores, "levels": levels}
+    payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    scores_json  = json.dumps(scores, ensure_ascii=False, separators=(",", ":"))
+    levels_json  = json.dumps(levels, ensure_ascii=False, separators=(",", ":"))
 
-- C 勤勉性:
-  - high: 計画性・継続力・締切厳守・準備・自己管理
-  - middle: 計画と柔軟さを状況で切替（矛盾する二律背反の同時称賛は不可）
-  - low: 臨機応変・試行錯誤・スピード重視（緻密な計画で着実は不可）
+    # format() では他プレースホルダ干渉の恐れがあるため、ピンポイント置換
+    prompt = template.replace("{payload}", payload_json)\
+                     .replace("{name}", name)\
+                     .replace("{scores}", scores_json)\
+                     .replace("{levels}", levels_json)
+    print(prompt)
 
-- E 外向性:
-  - high: 社交性・発信力・対人刺激で活性化
-  - middle: 必要な場面で発信／集中作業も対人も状況で使い分け（極端表現は不可）
-  - low: 集中没頭・聞き手志向・落ち着いた関わり（人前での発信が得意 は不可）
-
-- A 協調性:
-  - high: 共感・配慮・信頼形成・協働志向
-  - middle: 意見を伝えつつ関係配慮／折衷的
-  - low: 率直・交渉・境界設定・合理的主張（過度な迎合は不可）
-
-- N 情動性（逆尺）:
-  - high: 感受性・慎重・リスク予期・周囲への気配り（「動じない」は不可）
-  - middle: 状況に応じた切替
-  - low: 安定・平静・切替の早さ（「繊細で揺れやすい」は不可）
-
-# フォーマット
-- 出力は本文のみ。前置き、見出し、箇条書きは禁止。
-- 具体的行動示唆を文末1つだけ入れる。
-
-# 入力(JSON)
-{{
-  "name": "{name}",
-  "scores": {scores},
-  "levels": {levels}
-}}
-
-# 例（出力イメージ：これは生成の参考であり、数値は書かない）
-例: 新しい考えを素直に取り入れ、学びを行動に移せる人です。計画を立てて進めつつ、必要な場面ではやり方を見直して改善できます。人前でも個人作業でも集中を保ち、周囲に配慮しながら意見を伝えられます。状況を丁寧に見極める慎重さも活かしています。日々の気づきを短く記録し、次の挑戦にすぐ試すと良いでしょう。
-"""
     return prompt.strip()
 
 
@@ -352,66 +326,39 @@ def build_office_prompt(name: str, levels_6: dict, strengths: list, weaknesses: 
         "dark_trait_alerts": alerts,            # middle/high のみ
         "dark_trait_low_as_strength": low_list, # low は安定要因（維持推奨、伸長は不可）
     }
-
     # 例: ["ナルシシズム=high", "サイコパシー=middle"] を一行で提示（無ければ空）
     alerts_line = "、".join(alerts) if alerts else ""
 
-    prompt = f"""
-あなたは日本語の文章作成アシスタントです。以下の入力(JSON)を基に、
-人事・マネジメント向けの事務局用コメントを**1段落（全角400〜600字）**で作成してください。
+    prompt_path = Path(__file__).resolve().parent / PROMPT_OFFICE_FILE
+    if not prompt_path.exists():
+        print(f"事務局用の固定プロンプトファイルが見つかりません: {prompt_path}", file=sys.stderr)
+        return "テンプレートが見つかりません"
 
-# 出力仕様（厳守）
-- **1段落のみ／改行なし**。句点「。」で文を区切る。記号や括弧、箇条書き、見出しは使わない。
-- **数字・スコア・記号は書かない**（例：% や（）や：や・は使わない）。
-- 文字数は**全角換算で400〜600字**。最終工程で**この範囲に厳密調整**すること。
+    prompt = prompt_path.read_text(encoding="utf-8")
+    template = prompt_path.read_text(encoding="utf-8")
+    payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    prompt = template.replace("{payload}", payload_json).replace("{alerts_line}", alerts_line)
 
-# 構成（文章は一段落で連続して書く）
-1) **6因子の結果の要約（およそ100字）**
-   - 因子名は次の6つのみを使用可：正直・謙虚さ／情動性／外向性／協調性／勤勉性／開放性
-   - 水準語は「高い／中／低い」のみ。**羅列せず**、要点だけ触れる。**数値は出さない**。
-   - 表記ゆれ禁止：例「正直謙虚さ」「誠実さ（H）」などに置換しない。
+    print(prompt)
 
-2) **強み（およそ100字）**
-   - 入力の strength_hints から**上位優先**で1〜3点選ぶ。
-   - **禁止語**：正直・謙虚さ／情動性／外向性／協調性／勤勉性／開放性
-     - 上記がヒント内に含まれる場合は除外する。**
-
-3) **弱み・今後の注意（およそ100字）**
-   - 入力の attention_hints から**上位優先**で1〜3点選ぶ。
-   - **禁止語**：正直・謙虚さ／情動性／外向性／協調性／勤勉性／開放性
-     - 含まれる場合は除外する。**
-
-4) **ダーク傾向の扱い（必要時のみ短く）**
-   - 「ナルシシズム／マキャベリズム／サイコパシー／ダーク傾向」という語は**本文に出さない**。
-   - middle/high がある場合は**中立トーン**で、想定リスク例（利己的判断、衝動性、規範軽視など）を**一例のみ**触れ、
-     **対処を1〜2点**だけ示す（役割設計、意思決定の透明化、レビュー頻度設定など）。
-   - low は安定要因として触れてもよいが、「伸ばす／増やす」とは書かない（維持の示唆は可）。
-
-# 文体と表現ルール
-- **両面併記の乱用禁止**（「一方で〜も」を多用しない）。「バランスが良い」等の曖昧総評は禁止。
-- 共感や配慮など**他因子の内容を推測で混同しない**。
-- レッテル貼りや断定禁止。丁寧語で簡潔に。
-
-# 自動チェックと調整（生成後に必ず実施）
-- 改行があれば**削除**し、全角カウントで**400〜600字に収める**。超過時は末尾から削り、文末は句点で整える。
-
-# 入力(JSON)
-{payload}
-{alerts_line}
-    """
     return prompt
 
 def generate_comment_via_gpt(prompt: str) -> str:
     try:
-        resp = client.responses.create(
-            model="gpt-4o-mini",
-            input=prompt,
-            temperature=0.1,
-            max_output_tokens=512,
+        resp = openai_client.responses.create(
+            model=MODEL,
+            input=[
+                {"role": "system", "content": "あなたは簡潔かつ丁寧な日本語の文章アシスタントです。"},
+                {"role": "user", "content": prompt},
+            ],
+            # temperature=0.1,
+            # max_output_tokens=512,
+            max_output_tokens=2048,
         )
         return resp.output_text.strip()
     except Exception:
         return "観察された特性を踏まえ、強みを活かしつつ小さな行動から改善を進めましょう。"
+
 
 # ------------------ DOCX生成 ------------------
 
@@ -473,6 +420,7 @@ def fill_person_docx(row: pd.Series, radar_buf, out_docx_path: str, out_pdf_path
 
     comment = generate_comment_via_gpt(prompt)
     comment = trim_to_fullwidth_chars(comment, PERSON_COMMENT_LIMIT)
+    print(comment)
     replace_text_placeholders(doc, {"[comment_about_5_factors]": comment, "[COMMENT]": comment})
 
     # レーダー画像
@@ -547,6 +495,7 @@ def fill_office_docx(row: pd.Series, radar_buf, out_docx_path: str, out_pdf_path
     prompt = build_office_prompt(name, levels, strengths, weaknesses, dark_levels=dark_levels)
     comment = generate_comment_via_gpt(prompt)
     comment = trim_to_fullwidth_chars(comment, OFFICE_COMMENT_LIMIT)
+    print(comment)
     replace_text_placeholders(doc, {"[comment_about_6_factors_and_darktrait]": comment, "[COMMENT]": comment})
 
     # レーダー画像（事務局用は main 内で平均オーバーレイ済みのバッファを受け取る）
@@ -631,8 +580,8 @@ def main():
         office_pdf  = os.path.join(OUT_OFFICE_PDF,  f"{safe_name}_事務局用.pdf")
 
         # ---- 出力 ----
-        # fill_person_docx(row, buf_p, person_docx, person_pdf)
-        fill_office_docx(row, buf_o, office_docx, office_pdf)
+        fill_person_docx(row, buf_p, person_docx, person_pdf)
+        # fill_office_docx(row, buf_o, office_docx, office_pdf)
 
         print(f"Generated: {person_docx}")
         print(f"Generated: {person_pdf}")
