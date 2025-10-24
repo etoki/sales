@@ -10,7 +10,6 @@ from typing import Dict, List, Tuple, Iterable, Optional
 import sys
 from pathlib import Path
 import json
-from collections import OrderedDict
 
 from docx import Document
 from docx.shared import Inches
@@ -28,17 +27,17 @@ openai_client = OpenAI()
 
 # -------- OpenAI Model & Prompt Files (added) --------
 # MODEL = "gpt-5-nano"
-# MODEL = "gpt-4.1"
+MODEL = "gpt-4.1"
 # MODEL = "gpt-4o-mini"
-MODEL = "o4-mini"
+# MODEL = "o4-mini"
 PROMPT_PERSONAL_FILE = "pmt/prompt_personal.txt"
 PROMPT_OFFICE_FILE = "pmt/prompt_office.txt"
 
 # ------------------ コンフィグ ------------------
 # CSV_PATH = "csv/20250417_nttdata_ddd.csv"
-CSV_PATH = "csv/20251020_nttdatauniv_test1.csv"
+# CSV_PATH = "csv/20251020_nttdatauniv_test1.csv"
 # CSV_PATH = "csv/20251020_nttdatauniv_test2.csv"
-# CSV_PATH = "csv/20251020_nttdatauniv.csv"
+CSV_PATH = "csv/20251020_nttdatauniv.csv"
 TEMPLATE_PERSON = "tmp/HEXACOfbレポート_本人用_tmp.docx"
 TEMPLATE_OFFICE = "tmp/HEXACOfbレポート_事務局用_tmp.docx"
 OUT_DIR = "out/"
@@ -56,37 +55,6 @@ RADAR_HEIGHT_PX = 300
 FONT_NAME = "MS Gothic"
 
 DARK_TRAIT_COLS = ["ダーク傾向", "ナルシシズム", "サイコパシー", "マキャベリズム"]
-
-PRIORITY_HEADS_STRENGTH = [
-    "知能指数（IQ）","ポジティブ感情","モチベーション","主体的行動","人間関係","レジリエンス","リスクに対して冷静",
-    "いい上司になりやすい可能性","仕事のパフォーマンスが高くなりやすい可能性",
-    "ワークエンゲージメントが高くなりやすい可能性","職務の範囲外の仕事を積極的に行う可能性",
-    "ストレス対処の傾向：問題の解決を求める"
-]
-
-PRIORITY_HEADS_WEAKNESS = [
-    "情動知能（EQ）","バイアス傾向","疲れやすさ","責任転嫁傾向",
-    "社会的手抜き","同調圧力への敏感さ","バーンアウト傾向",
-    "ストレス対処の傾向：問題をとにかく避ける","放任型リーダーシップである可能性"
-]
-
-FEATURE_POLARITY = {
-    "疲れやすさ": -1,
-    "責任転嫁傾向": -1,
-    "バイアス傾向": -1,
-    "同調圧力への敏感さ": -1,
-    "バーンアウト傾向": -1,
-    "社会的手抜き": -1
-}
-
-FEATURE_DISPLAY = {
-    "疲れやすさ": "疲れにくさ（スタミナ）",
-    "責任転嫁傾向": "自責と改善志向",
-    "バイアス傾向": "バイアスの少なさ",
-    "同調圧力への敏感さ": "自律的判断",
-    "バーンアウト傾向": "燃え尽きにくさ",
-    "社会的手抜き": "主体的な貢献"
-}
 
 # ------------------ ユーティリティ ------------------
 
@@ -128,68 +96,28 @@ def trim_to_fullwidth_chars(text: str, limit: int) -> str:
         s = s[:last_marume+1]
     return s
 
-def collect_flags_dict(row, exclude_cols=None,
-                       polarity_map=None, display_map=None,
-                       include_middle: bool = False):
+def collect_all_level_flags(
+    row: pd.Series,
+    include_values: tuple[str, ...] = ("high", "middle", "low"),
+    exclude_cols: list[str] | set[str] | None = None,
+) -> list[str]:
     """
-    戻り値: (strengths_dict, weaknesses_dict)
-      例: ({"疲れにくさ":"low", ...}, {"主体的な貢献":"high", ...})
+    CSVの行から、値が high/middle/low の列を「カラム:値」形式で収集。
+    例: ["疲れやすさ:low", "主体性:high", ...]
+    exclude_cols に指定された列名は除外（DARK_TRAIT_COLSなど）。
     """
-    if exclude_cols is None:
-        exclude_cols = []
-    if polarity_map is None:
-        polarity_map = {}
-    if display_map is None:
-        display_map = {}
-
-    strengths, weaknesses = OrderedDict(), OrderedDict()
+    out = []
+    iv = {s.lower() for s in include_values}
+    ex = set(exclude_cols or [])
 
     for col, val in row.items():
-        if col in exclude_cols:
+        if col in ex:
             continue
-        if not isinstance(val, str):
-            continue
-        sv = val.strip().lower()
-        if sv not in ("high", "low", "middle"):
-            continue
-        if sv == "middle" and not include_middle:
-            continue
-
-        disp = display_map.get(col, col)
-        direction = polarity_map.get(col, +1)  # +1:高い方が良い / -1:低い方が良い
-
-        # 良し悪しの判定（表示レベルは反転しない）
-        if sv == "high":
-            is_good = (direction == +1)
-        elif sv == "low":
-            is_good = (direction == -1)
-        else:  # middle
-            is_good = None
-
-        if is_good is True:
-            strengths[disp] = sv
-        elif is_good is False:
-            weaknesses[disp] = sv
-        # middle は通常スキップ
-
-    return strengths, weaknesses
-
-DISPLAY_TO_RAW = {v: k for k, v in FEATURE_DISPLAY.items()}
-
-def reorder_by_priority(flags_dict: OrderedDict, priority_heads: list,
-                        display_to_raw: dict | None = None) -> OrderedDict:
-    """
-    表示名→元名の逆引き（あれば）を使って優先度表（元名）と突合し、並び替える。
-    """
-    display_to_raw = display_to_raw or {}
-    prio = {name: i for i, name in enumerate(priority_heads)}
-
-    def key_fn(display_name):
-        raw = display_to_raw.get(display_name, display_name)
-        return prio.get(raw, 10_000)
-
-    return OrderedDict(sorted(flags_dict.items(), key=lambda kv: key_fn(kv[0])))
-
+        if isinstance(val, str):
+            sv = val.strip().lower()
+            if sv in iv:
+                out.append(f"{col}:{sv}")
+    return out
 
 # ------------------ レーダー ------------------
 
@@ -353,29 +281,24 @@ def build_person_prompt(name: str, scores: dict, levels: dict) -> str:
     return prompt.strip()
 
 
-def build_office_prompt(name: str, levels_6: dict, strengths: dict, weaknesses: dict, dark_levels: dict = None) -> str:
-    # --- ダーク傾向（ある場合のみ軽く注意喚起） ---
-    alerts = []
-    low_list = []
-    if dark_levels:
-        for k, v in dark_levels.items():
-            sv = str(v).strip().lower()
-            if sv in ("middle", "high"):
-                alerts.append(f"{k}={v}")
-            elif sv == "low":
-                low_list.append(k)
+def build_office_prompt(
+    name: str,
+    levels_6: dict,
+    level_flags: list[str],
+    dark_levels: dict | None = None
+) -> str:
 
     payload = {
         "name": name,
-        "hexaco_levels": levels_6,              # 例: {"H":"高い","E":"中",...}
-        "strength_hints": strengths,            # high由来のヒント（任意）
-        "attention_hints": weaknesses,          # low由来の留意点（任意）
-        "dark_trait_levels": dark_levels or {}, # 例: {"ナルシシズム":"low/middle/high", ...}
-        "dark_trait_alerts": alerts,            # middle/high のみ
-        "dark_trait_low_as_strength": low_list, # low は安定要因（維持推奨、伸長は不可）
+        "hexaco_levels": levels_6,
+        "level_flags": level_flags,
+        "dark_trait_levels": dark_levels or {},
     }
-    # 例: ["ナルシシズム=high", "サイコパシー=middle"] を一行で提示（無ければ空）
-    alerts_line = "、".join(alerts) if alerts else ""
+
+    # ← 文字列化（テンプレがプレーン埋め込み想定なのでJSON文字列を使う）
+    levels_6_str     = json.dumps(levels_6, ensure_ascii=False, separators=(",", ":"))
+    level_flags_str  = json.dumps(level_flags, ensure_ascii=False, separators=(",", ":"))
+    dark_levels_str  = json.dumps(dark_levels or {}, ensure_ascii=False, separators=(",", ":"))
 
     prompt_path = Path(__file__).resolve().parent / PROMPT_OFFICE_FILE
     if not prompt_path.exists():
@@ -383,8 +306,14 @@ def build_office_prompt(name: str, levels_6: dict, strengths: dict, weaknesses: 
         return "テンプレートが見つかりません"
 
     template = prompt_path.read_text(encoding="utf-8")
-    payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-    prompt = template.replace("{payload}", payload_json).replace("{alerts_line}", alerts_line)
+
+    prompt = (
+        template
+        .replace("{name}", name)
+        .replace("{hexaco_levels}", levels_6_str)
+        .replace("{level_flags}", level_flags_str)
+        .replace("{dark_trait_levels}", dark_levels_str)
+    )
     return prompt
 
 def generate_comment_via_gpt(prompt: str) -> str:
@@ -502,15 +431,7 @@ def fill_office_docx(row: pd.Series, radar_buf, out_docx_path: str, out_pdf_path
         "O": label_from_score(row.get("開放性（好奇心）")),
     }
 
-    strengths_dict, weaknesses_dict = collect_flags_dict(
-        row,
-        exclude_cols=DARK_TRAIT_COLS,
-        polarity_map=FEATURE_POLARITY,
-        display_map=FEATURE_DISPLAY
-    )
-
-    strengths_dict = reorder_by_priority(strengths_dict, PRIORITY_HEADS_STRENGTH, DISPLAY_TO_RAW)
-    weaknesses_dict = reorder_by_priority(weaknesses_dict, PRIORITY_HEADS_WEAKNESS, DISPLAY_TO_RAW)
+    level_flags = collect_all_level_flags(row, exclude_cols=DARK_TRAIT_COLS)
 
     text_map = {
         "[Name]": name,
@@ -542,7 +463,7 @@ def fill_office_docx(row: pd.Series, radar_buf, out_docx_path: str, out_pdf_path
             dark_levels[col] = row[col]
 
     # コメント
-    prompt = build_office_prompt(name, levels, strengths_dict, weaknesses_dict, dark_levels=dark_levels)
+    prompt = build_office_prompt(name, levels_6=levels, level_flags=level_flags, dark_levels=dark_levels)
     comment = generate_comment_via_gpt(prompt)
     comment = trim_to_fullwidth_chars(comment, OFFICE_COMMENT_LIMIT)
     replace_text_placeholders(doc, {"[comment_about_6_factors_and_darktrait]": comment, "[COMMENT]": comment})
@@ -573,7 +494,11 @@ def main():
         "価値観の傾向：周りの人々の繁栄や幸福を求める",
         "価値観の傾向：他人の期待に応えるために自らの衝動をコントロールする",
         "価値観の傾向：伝統を守る",
-        "価値観の傾向：自分・家族・国家の安全や安心を求める"
+        "価値観の傾向：自分・家族・国家の安全や安心を求める",
+        "開放性と正直謙虚さが高い人と相性がいい可能性",
+        "開放性が高く正直謙虚さが低い人と相性がいい可能性",
+        "開放性が低く正直謙虚さが高い人と相性がいい可能性",
+        "開放性と正直謙虚さが低い人と相性がいい可能性"
     ]
     exact_hits = [c for c in DROP_COLS_EXACT if c in df.columns]
 
@@ -629,7 +554,7 @@ def main():
         office_pdf  = os.path.join(OUT_OFFICE_PDF,  f"{safe_name}_事務局用.pdf")
 
         # ---- 出力 ----
-        fill_person_docx(row, buf_p, person_docx, person_pdf)
+        # fill_person_docx(row, buf_p, person_docx, person_pdf)
         fill_office_docx(row, buf_o, office_docx, office_pdf)
 
         print(f"Generated: {person_docx}")
