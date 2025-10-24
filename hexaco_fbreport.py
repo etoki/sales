@@ -36,8 +36,8 @@ PROMPT_OFFICE_FILE = "pmt/prompt_office.txt"
 # ------------------ コンフィグ ------------------
 # CSV_PATH = "csv/20250417_nttdata_ddd.csv"
 # CSV_PATH = "csv/20251020_nttdatauniv_test1.csv"
-# CSV_PATH = "csv/20251020_nttdatauniv_test2.csv"
-CSV_PATH = "csv/20251020_nttdatauniv.csv"
+CSV_PATH = "csv/20251020_nttdatauniv_test2.csv"
+# CSV_PATH = "csv/20251020_nttdatauniv.csv"
 TEMPLATE_PERSON = "tmp/HEXACOfbレポート_本人用_tmp.docx"
 TEMPLATE_OFFICE = "tmp/HEXACOfbレポート_事務局用_tmp.docx"
 OUT_DIR = "out/"
@@ -498,7 +498,11 @@ def main():
         "開放性と正直謙虚さが高い人と相性がいい可能性",
         "開放性が高く正直謙虚さが低い人と相性がいい可能性",
         "開放性が低く正直謙虚さが高い人と相性がいい可能性",
-        "開放性と正直謙虚さが低い人と相性がいい可能性"
+        "開放性と正直謙虚さが低い人と相性がいい可能性",
+        "ストレス対処の傾向：魔法のような救済を望む",
+        "ストレス対処の傾向：泣く、物をなげる、自己非難",
+        "ストレス対処の傾向：アルコールやニコチンなどに頼る",
+        "ストレス対処の傾向：宗教的活動に参加する"
     ]
     exact_hits = [c for c in DROP_COLS_EXACT if c in df.columns]
 
